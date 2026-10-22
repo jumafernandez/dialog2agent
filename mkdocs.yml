@@ -1,0 +1,30 @@
+site_name: dialog2agent
+site_description: Build task-oriented dialogue agents that decide over structures induced from your own conversations.
+theme:
+  name: material
+  features: [navigation.sections, content.code.copy]
+  palette:
+    - scheme: default
+      primary: deep purple
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - scheme: slate
+      primary: deep purple
+      toggle: {icon: material/weather-sunny, name: Light mode}
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Concepts: concepts.md
+  - Build your own domain: build-a-domain.md
+  - Evaluation: evaluation.md
+  - Web demo: demo.md
+  - API reference: api/index.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - tables

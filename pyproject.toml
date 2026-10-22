@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dialog2agent"
+version = "0.1.0.dev0"
+description = "Build task-oriented dialogue agents that decide over structures induced from your own conversations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Juan Manuel Fernández" }]
+keywords = ["task-oriented dialogue", "dialogue agents", "large language models", "neuro-symbolic", "dialog2flow"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.24",
+  "torch>=2.2",
+  "transformers>=4.46",
+  "peft>=0.13",
+  "sentence-transformers>=3.0",
+]
+
+[project.optional-dependencies]
+build = ["scikit-learn>=1.4", "scipy>=1.11", "pandas>=2.0"]
+train = ["accelerate>=0.34", "pandas>=2.0"]
+eval = ["pandas>=2.0", "sacrebleu>=2.4"]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
+docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+dialog2agent = "dialog2agent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dialog2agent"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
