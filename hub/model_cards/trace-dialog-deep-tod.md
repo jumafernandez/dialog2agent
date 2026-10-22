@@ -2,10 +2,12 @@
 license: apache-2.0
 language:
   - en
-library_name: transformers
+library_name: sentence-transformers
 pipeline_tag: feature-extraction
 base_model: sergioburdisso/dialog2flow-joint-bert-base
 tags:
+  - sentence-transformers
+  - transformers
   - dialogue
   - task-oriented-dialogue
   - dialogue-embeddings
@@ -35,7 +37,30 @@ trajectory of the dialogue, that is, to the order of its turns.
 
 ## Usage
 
-The model ships its own code, so it loads with `trust_remote_code=True`. Pinning a `revision` is recommended.
+The model ships its own code, so it loads with `trust_remote_code=True`. Pinning a `revision` is recommended. In
+both cases the turns are encoded with the base encoder declared in the configuration, and only the first 62 turns of
+a dialogue are used.
+
+### With sentence-transformers
+
+Each input is a whole dialogue, given as a list of chat messages (`role` and `content`) or of turns (`speaker` and
+`text`). The roles `user` and `assistant` (or `system`) are the user and the system of the dialogue.
+
+```python
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("jumafernandez/trace-dialog-deep-tod", trust_remote_code=True)
+
+dialogue = [{"role": "user", "content": "hi, I need a cheap restaurant in the centre"},
+            {"role": "assistant", "content": "sure, what kind of food would you like?"},
+            {"role": "user", "content": "italian"}]
+embeddings = model.encode([dialogue])   # (1, 768), one h_CLS per dialogue
+```
+
+The embeddings can be compared with the similarity functions of sentence-transformers, for example to retrieve the
+dialogues of a collection that are closest to an ongoing one.
+
+### With transformers
 
 ```python
 from transformers import AutoModel
@@ -47,8 +72,7 @@ speakers = ["user", "system", "user"]
 h_cls = model.encode_dialogue(turns, speakers)   # (768,)
 ```
 
-`encode_dialogue` computes the base embeddings with the base encoder declared in the configuration, which requires `sentence-transformers`. Precomputed base
-embeddings can be passed with `embeddings=`. Only the first 62 turns are used.
+`encode_dialogue` also accepts precomputed base embeddings with `embeddings=`.
 
 ## Evaluation
 
@@ -68,7 +92,9 @@ This combination is the representation of the conversational memory of the
 
 This repository contains the checkpoint converted to the transformers format. The conversion was verified against
 the representations computed with the training code on 1,882 dialogue prefixes of SpokenWOZ, with a maximum
-absolute difference of $7.4 \times 10^{-6}$.
+absolute difference of $7.4 \times 10^{-6}$. The sentence-transformers interface was verified from the text of 500
+dialogue prefixes of SpokenWOZ, from 1 to 90 turns, with a maximum absolute difference of $1.4 \times 10^{-5}$ with
+sentence-transformers 5.6 and 6.2.
 
 ## Limitations
 
