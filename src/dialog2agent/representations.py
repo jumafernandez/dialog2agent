@@ -22,7 +22,7 @@ TRACE_DIALOG = "jumafernandez/trace-dialog-deep-tod"
 # or in the domain artifact, since the memory of a domain was computed with a given version of the encoders.
 REVISIONS = {
     TRACE: "97f9ce89919e72abb857d47a88756a3374e93a9a",
-    TRACE_DIALOG: "da5b73008512f9de7259186095d045fb86255bd0",
+    TRACE_DIALOG: "cc86b3a414ce527366b6eb7f2693190be430cf71",
 }
 
 
