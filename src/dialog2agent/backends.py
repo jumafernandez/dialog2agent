@@ -91,8 +91,10 @@ class TransformersBackend:
 
     @torch.no_grad()
     def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120) -> str:
-        p = self._prompt(messages, reserve=max_new_tokens + len(self._ids(prefix)))
-        ids = torch.tensor([p + self._ids(prefix)], device=self.device)
+        # The prefix is tokenized together with the prompt and the budget only reserves the new tokens, as in the
+        # evaluation of the published adapters.
+        fitted = _fit(messages, lambda m: len(self._ids(self._template(m))), self.max_tokens - max_new_tokens)
+        ids = torch.tensor([self._ids(self._template(fitted) + prefix)], device=self.device)
         out = self.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids), max_new_tokens=max_new_tokens,
                                   do_sample=False, pad_token_id=self.pad, eos_token_id=self.eos)
         return self.tokenizer.decode(out[0, ids.shape[1]:], skip_special_tokens=True)

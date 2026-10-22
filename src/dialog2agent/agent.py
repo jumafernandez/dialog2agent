@@ -1,7 +1,8 @@
 """The agent: perceives the dialogue, decides the next action over the induced structure, acts and writes.
 
-The same ``Agent.turn`` is used by the evaluation, by the user simulation and by the web demo, so that what is shown
-is what was evaluated.
+``Agent.respond`` computes the next system turn of a dialogue without changing any state, and ``Agent.turn`` applies
+it to an ongoing session. The evaluation calls ``respond`` on the real dialogues and the user simulation and the web
+demo call ``turn``, so that what is shown is what was evaluated.
 """
 from __future__ import annotations
 
@@ -57,39 +58,49 @@ class Agent:
     def new_session(self) -> Session:
         return Session()
 
-    def turn(self, session: Session, user_text: str) -> TurnResult:
-        """Process a user turn and return the response with the full trace of the decision."""
-        session.turns.append(Turn("user", user_text))
-        e = self.turn_encoder.encode([t.text for t in session.turns])
-        h = self.context_encoder.encode(session.turns, e)
+    def respond(self, turns: list[Turn], constraints: dict[str, dict[str, str]] | None = None,
+                write: bool = True) -> TurnResult:
+        """Decide and write the next system turn of a dialogue that ends with a user turn.
+
+        With ``write=False`` only the action is decided and the text of the result is empty.
+        """
+        if not turns or turns[-1].speaker != "user":
+            raise ValueError("the dialogue must end with a user turn")
+        e = self.turn_encoder.encode([t.text for t in turns])
+        h = self.context_encoder.encode(turns, e)
         state = int(self.structure.state(e[-1], h[-1]))
         allowed = self.structure.allowed(state)
 
-        h_cls = self.dialogue_encoder.encode(session.turns, e)
+        h_cls = self.dialogue_encoder.encode(turns, e)
         query = self.memory.represent(e[-1], np.asarray(h_cls).reshape(-1))
         situations = self.memory.search(query, self.k, state=state if self.conditioned else None,
                                         allowed=allowed if self.conditioned else None)
 
-        context = session.turns[-MAX_CONTEXT_TURNS:]
+        context = list(turns[-MAX_CONTEXT_TURNS:])
         while context and context[0].speaker != "user":
             context = context[1:]
-        names = list(dict.fromkeys(self.structure.names[a] for a in allowed))
+        names = sorted({self.structure.names[a] for a in allowed})
         chat = messages(context, situations, names, self.prompt)
         options = self.decider.decide(chat, state, allowed, situations)
         action = options[0].action
 
         tool_calls = []
         tool = self.tools.for_action(action.name)
-        if tool is not None and session.constraints:
-            for domain, constraints in session.constraints.items():
-                tool_calls.append(tool(domain=domain, constraints=constraints))
+        if tool is not None and constraints:
+            for domain, values in constraints.items():
+                tool_calls.append(tool(domain=domain, constraints=values))
         if tool_calls:
             chat = messages(context, situations, names, self.prompt,
                             tool_results=[f"{c.name}({c.arguments}) -> {c.result}" for c in tool_calls])
-        text = self.backend.generate(chat, prefix=action_prefix(action.name)).strip()
-
-        session.turns.append(Turn("system", text))
-        session.states.append(state)
-        session.actions.append(action)
+        text = self.backend.generate(chat, prefix=action_prefix(action.name)).strip() if write else ""
         return TurnResult(text=text, action=action, state=state, options=options, situations=situations,
                           tool_calls=tool_calls)
+
+    def turn(self, session: Session, user_text: str) -> TurnResult:
+        """Process a user turn of a session and return the response with the full trace of the decision."""
+        session.turns.append(Turn("user", user_text))
+        result = self.respond(session.turns, constraints=session.constraints)
+        session.turns.append(Turn("system", result.text))
+        session.states.append(result.state)
+        session.actions.append(result.action)
+        return result

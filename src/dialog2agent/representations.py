@@ -42,15 +42,26 @@ class DialogueEncoder(Protocol):
 
 
 class Dialog2FlowEncoder:
-    """Dialog2Flow turn encoder (Burdisso et al., 2024)."""
+    """Dialog2Flow turn encoder (Burdisso et al., 2024).
 
-    def __init__(self, model: str = DIALOG2FLOW, device: str | None = None):
+    Embeddings are cached by text, since the agent encodes the whole dialogue at every turn.
+    """
+
+    def __init__(self, model: str = DIALOG2FLOW, device: str | None = None, cache_size: int = 100_000):
         from sentence_transformers import SentenceTransformer
         self.model = SentenceTransformer(model, device=device)
+        self.cache: dict[str, np.ndarray] = {}
+        self.cache_size = cache_size
 
     def encode(self, texts: list[str]) -> np.ndarray:
-        return self.model.encode(texts, batch_size=64, show_progress_bar=False,
-                                 convert_to_numpy=True).astype(np.float32)
+        new = [t for t in dict.fromkeys(texts) if t not in self.cache]
+        if len(self.cache) + len(new) > self.cache_size:
+            self.cache.clear()
+            new = list(dict.fromkeys(texts))
+        if new:
+            vectors = self.model.encode(new, batch_size=64, show_progress_bar=False, convert_to_numpy=True)
+            self.cache.update(zip(new, vectors.astype(np.float32)))
+        return np.stack([self.cache[t] for t in texts])
 
 
 class _HubModel:

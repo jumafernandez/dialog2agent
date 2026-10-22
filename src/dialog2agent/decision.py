@@ -26,6 +26,8 @@ class Decider(Protocol):
 
 
 def _options(structure: InducedStructure, allowed: list[int], scores: np.ndarray, scale: float) -> list[Option]:
+    """Options ordered by score. Ties keep the order of ``allowed``, which goes from the most to the least probable
+    action of the state."""
     z = scale * (scores - scores.max())
     p = np.exp(z) / np.exp(z).sum()
     order = np.argsort(-scores, kind="stable")
@@ -36,18 +38,17 @@ def _options(structure: InducedStructure, allowed: list[int], scores: np.ndarray
 class LLMScoringDecider:
     """Scores the allowed actions with the language model.
 
-    Actions that share a name receive the same score, and the tie is broken by the probability of the action in the
-    state. ``scale`` is a calibration factor of the probabilities (it does not change the chosen action).
+    Actions that share a name receive the same score, and among them the most probable one in the state is chosen.
+    ``scale`` is a calibration factor of the probabilities (it does not change the chosen action).
     """
 
     def __init__(self, backend: LLMBackend, structure: InducedStructure, scale: float = 1.0):
         self.backend, self.structure, self.scale = backend, structure, scale
 
     def decide(self, messages, state, allowed, situations):
-        names = list(dict.fromkeys(self.structure.names[a] for a in allowed))
+        names = sorted({self.structure.names[a] for a in allowed})
         by_name = dict(zip(names, self.backend.score(messages, [action_prefix(n) for n in names])))
-        prior = self.structure.prior(state)
-        scores = np.array([by_name[self.structure.names[a]] + 1e-6 * prior[a] for a in allowed])
+        scores = np.array([by_name[self.structure.names[a]] for a in allowed])
         return _options(self.structure, allowed, scores, self.scale)
 
 

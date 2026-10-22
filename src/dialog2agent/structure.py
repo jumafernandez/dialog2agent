@@ -63,8 +63,9 @@ class InducedStructure:
     def state(self, e: np.ndarray, h: np.ndarray) -> np.ndarray:
         """State of user turns from their Dialog2Flow (``e``) and TRACE (``h``) embeddings."""
         x = normalize(np.concatenate([normalize(e), self.context_weight * normalize(h)], axis=-1))
-        d = ((x[..., None, :] - self.state_centers) ** 2).sum(-1)
-        return np.argmin(d, axis=-1)
+        c = self.state_centers.astype(np.float32)
+        # squared Euclidean distance without the term of x, which is the same for every center
+        return np.argmin((c * c).sum(-1) - 2 * x @ c.T, axis=-1)
 
     def prior(self, state: int) -> np.ndarray:
         """Probability of each system action in a state, P(a | s), with the global distribution as fallback."""

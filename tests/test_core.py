@@ -50,6 +50,11 @@ class FakeEncoder:
         return np.ones((n, 8), np.float32)
 
 
+class FakeDialogueEncoder:
+    def encode(self, turns, e):
+        return np.ones(8, np.float32)
+
+
 class FakeBackend:
     def score(self, messages, continuations):
         return [float(len(c)) for c in continuations]
@@ -62,10 +67,58 @@ def test_agent_turn_decides_within_allowed_actions():
     s = toy_structure()
     m = SituationMemory(np.ones((3, 16)), [{"user": "hi", "action": "greeting", "response": "hello", "state": 0,
                                             "action_id": 0}] * 3)
-    agent = Agent(s, m, FakeBackend(), FakeEncoder(), FakeEncoder(), FakeEncoder(), decider=StructureDecider(s), k=2)
+    agent = Agent(s, m, FakeBackend(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(), decider=StructureDecider(s), k=2)
     session = agent.new_session()
     r = agent.turn(session, "hello")
     assert r.action.id in s.allowed(r.state)
     assert abs(sum(o.probability for o in r.options) - 1) < 1e-6
     assert session.turns[-1] == Turn("system", "Hello, how can I help you?")
     assert isinstance(session, Session) and len(r.situations) == 2
+
+
+def test_state_is_the_nearest_center():
+    s = toy_structure()
+    rng = np.random.default_rng(2)
+    e, h = rng.normal(size=(20, 8)), rng.normal(size=(20, 8))
+    x = np.hstack([e / np.linalg.norm(e, axis=1, keepdims=True),
+                   s.context_weight * h / np.linalg.norm(h, axis=1, keepdims=True)])
+    x /= np.linalg.norm(x, axis=1, keepdims=True)
+    brute = np.argmin(((x[:, None] - s.state_centers) ** 2).sum(-1), axis=1)
+    assert (s.state(e, h) == brute).all()
+
+
+def test_scoring_decider_breaks_name_ties_by_state_probability():
+    from dialog2agent import LLMScoringDecider
+    s = toy_structure()
+
+    class ByName:
+        def score(self, messages, continuations):
+            return [1.0 if "inform" in c else 0.0 for c in continuations]
+
+    options = LLMScoringDecider(ByName(), s).decide([], 1, s.allowed(1), [])
+    assert [o.action.id for o in options] == [2, 3]  # same name, action 2 is more probable in state 1
+    assert np.isclose(options[0].probability, options[1].probability)
+
+
+def test_memory_search_excludes_a_dialogue():
+    rng = np.random.default_rng(3)
+    entries = [{"user": f"u{i}", "action": "greeting", "response": "r", "state": 0, "action_id": 0,
+                "dialogue_id": f"d{i % 2}"} for i in range(6)]
+    m = SituationMemory(rng.normal(size=(6, 4)), entries)
+    assert all(x.dialogue_id == "d1" for x in m.search(rng.normal(size=4), k=3, exclude_dialogue="d0"))
+
+
+def test_evaluation_predicts_with_the_real_history(tmp_path):
+    from dialog2agent.evaluation import predict, report
+    s = toy_structure()
+    m = SituationMemory(np.ones((3, 16)), [{"user": "hi", "action": "greeting", "response": "hello", "state": 0,
+                                            "action_id": 0}] * 3)
+    agent = Agent(s, m, FakeBackend(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(), decider=StructureDecider(s), k=2)
+    turns = [{"speaker": "user", "text": "hi"}, {"speaker": "system", "text": "hello"},
+             {"speaker": "user", "text": "a table"}, {"speaker": "user", "text": "for two"},
+             {"speaker": "system", "text": "sure"}]
+    out = tmp_path / "predictions_0.jsonl"
+    assert predict(agent, [{"dialogue_id": "d", "turns": turns}], out) == 2
+    assert predict(agent, [{"dialogue_id": "d", "turns": turns}], out) == 0  # resumed: nothing left
+    r = report([out])
+    assert r["turns"] == 2 and 0 <= r["action_accuracy"] <= 1

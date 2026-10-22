@@ -25,9 +25,19 @@ class SituationMemory:
         self.vectors = normalize(vectors) if vectors is not None else np.zeros((0, 0), np.float32)
         self.entries = list(entries or [])
         self.context_weight = context_weight
+        self._columns: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
 
     def __len__(self) -> int:
         return len(self.entries)
+
+    def _index(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """State, next action and dialogue of every entry as arrays (-1 when missing), rebuilt after additions."""
+        if self._columns is None or len(self._columns[0]) != len(self.entries):
+            def column(key):
+                return np.array([-1 if e.get(key) is None else e[key] for e in self.entries], dtype=np.int64)
+            self._columns = (column("state"), column("action_id"),
+                             np.array([e.get("dialogue_id") for e in self.entries], dtype=object))
+        return self._columns
 
     def represent(self, e: np.ndarray, h_cls: np.ndarray) -> np.ndarray:
         """Representation of a situation from the turn (``e``) and dialogue (``h_cls``) embeddings."""
@@ -40,24 +50,23 @@ class SituationMemory:
         entries qualify."""
         if not self.entries:
             return []
+        states, actions, dialogues = self._index()
         candidates = np.arange(len(self.entries))
         if exclude_dialogue is not None:
-            candidates = np.array([i for i in candidates if self.entries[i].get("dialogue_id") != exclude_dialogue])
+            candidates = candidates[dialogues != exclude_dialogue]
         if state is not None or allowed is not None:
-            ok = set(allowed or [])
-            cond = np.array([i for i in candidates if self.entries[i].get("state") == state
-                             or self.entries[i].get("action_id") in ok])
+            same = states[candidates] == (-2 if state is None else state)
+            cond = candidates[same | np.isin(actions[candidates], list(allowed or []))]
             if len(cond) >= k:
                 candidates = cond
         sims = self.vectors[candidates] @ normalize(query)
-        top = candidates[np.argsort(-sims, kind="stable")[:k]]
+        order = np.argsort(-sims, kind="stable")[:k]
         out = []
-        for i in top:
+        for i, sim in zip(candidates[order], sims[order]):
             entry = self.entries[i]
             out.append(Situation(user=entry["user"], action=entry["action"], response=entry["response"],
-                                 similarity=float(self.vectors[i] @ normalize(query)),
-                                 provenance=entry.get("provenance", "operator"), outcome=entry.get("outcome"),
-                                 dialogue_id=entry.get("dialogue_id")))
+                                 similarity=float(sim), provenance=entry.get("provenance", "operator"),
+                                 outcome=entry.get("outcome"), dialogue_id=entry.get("dialogue_id")))
         return out
 
     def add(self, vector: np.ndarray, situation: Situation, state: int | None = None,
