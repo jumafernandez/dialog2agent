@@ -12,4 +12,10 @@
 
 ::: dialog2agent.backends
 
+::: dialog2agent.representations
+
+::: dialog2agent.domain
+
+::: dialog2agent.evaluation
+
 ::: dialog2agent.types
