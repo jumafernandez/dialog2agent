@@ -122,3 +122,24 @@ def test_evaluation_predicts_with_the_real_history(tmp_path):
     assert predict(agent, [{"dialogue_id": "d", "turns": turns}], out) == 0  # resumed: nothing left
     r = report([out])
     assert r["turns"] == 2 and 0 <= r["action_accuracy"] <= 1
+
+
+def test_server_responds_with_the_trace():
+    import pytest
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from dialog2agent.server import create_app
+    s = toy_structure()
+    m = SituationMemory(np.ones((3, 16)), [{"user": "hi", "action": "greeting", "response": "hello", "state": 0,
+                                            "action_id": 0}] * 3)
+    agent = Agent(s, m, FakeBackend(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(),
+                  decider=StructureDecider(s), k=2)
+    client = TestClient(create_app(agent))
+    assert client.get("/health").json() == {"status": "ok"}
+    assert len(client.get("/structure").json()["states"]) == 2
+    r = client.post("/respond", json={"turns": [{"speaker": "user", "text": "hello"}]}).json()
+    assert r["text"] == "Hello, how can I help you?" and r["action"]["id"] in s.allowed(r["state"])
+    assert len(r["situations"]) == 2
+    bad = client.post("/respond", json={"turns": [{"speaker": "system", "text": "hi"}]})
+    assert bad.status_code == 422

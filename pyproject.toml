@@ -31,7 +31,7 @@ train = ["accelerate>=0.34", "pandas>=2.0"]
 eval = ["pandas>=2.0", "sacrebleu>=2.4"]
 web = ["fastapi>=0.110", "uvicorn>=0.29"]
 docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
-dev = ["pytest>=8.0", "ruff>=0.5"]
+dev = ["pytest>=8.0", "ruff>=0.5", "httpx>=0.27"]
 
 [project.scripts]
 dialog2agent = "dialog2agent.cli:main"

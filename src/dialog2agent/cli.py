@@ -1,4 +1,4 @@
-"""Command line interface: ``dialog2agent chat``, ``evaluate``, ``report`` and ``build``.
+"""Command line interface: ``dialog2agent chat``, ``evaluate``, ``report``, ``serve`` and ``build``.
 
 ``evaluate`` can run as several processes, one per accelerator, with ``torch.distributed.run``: each process takes
 the dialogues of its rank and writes its own file of predictions, so no communication between processes is needed.
@@ -63,6 +63,13 @@ def report(args) -> None:
     print(json.dumps(compute(sorted(Path(args.output).glob("predictions_*.jsonl"))), indent=1))
 
 
+def serve(args) -> None:
+    import uvicorn
+
+    from .server import create_app
+    uvicorn.run(create_app(load(args), allowed_origins=args.allowed_origins), host=args.host, port=args.port)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="dialog2agent")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -87,6 +94,12 @@ def main() -> None:
     p = sub.add_parser("report", help="metrics of the predictions of a directory")
     p.add_argument("output")
     p.set_defaults(func=report)
+    p = sub.add_parser("serve", help="serve an agent through an HTTP API")
+    agent_options(p)
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--allowed-origins", nargs="*", help="origins allowed to call the API (default: any)")
+    p.set_defaults(func=serve)
     p = sub.add_parser("build", help="build a domain artifact from unannotated dialogues")
     p.set_defaults(func=lambda a: (_ for _ in ()).throw(NotImplementedError("'build' is in progress")))
     args = parser.parse_args()
