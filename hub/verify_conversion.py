@@ -41,7 +41,8 @@ def main() -> None:
     dh, ch, cos_h, cos_c = [], [], [], []
     for d in ids:
         g = t[t["dialogue_id"] == d].sort_values("turn_id")
-        rows, spk = g.index.to_numpy(), g["speaker"].tolist()
+        rows = g.get("row_id", g.index).to_numpy()
+        spk = g["speaker"].tolist()
         h = trace.encode_dialogue([""] * len(rows), spk, embeddings=e[rows])
         dh.append(np.abs(h - h_ref[rows]).max())
         cos_h.append(cosine(h, h_ref[rows]).min())
