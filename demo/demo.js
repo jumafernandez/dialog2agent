@@ -37,6 +37,7 @@ const TEXTOS = {
     error: "No se pudo contactar al agente. Probá de nuevo en un rato.", limite: "Llegaste al máximo de turnos de esta sesión.",
     soloReplay: "solo en el replay", ficha: (s, n) => `estado ${s} · ${n} turnos de entrenamiento`, tipicos: "turnos típicos del usuario",
     probables: "acciones más probables",
+    sinHerramienta: "Acá un operador consultaría la base de datos. Este agente todavía no tiene herramientas: imita la frase, pero no busca, y los lugares que nombra salen de otras conversaciones.",
     idioma: "El agente conversa solo en inglés: su estructura y su memoria se construyeron con conversaciones de SpokenWOZ, que están en inglés. Probá, por ejemplo, «I need a cheap restaurant in the centre».",
     dominio: (a, m, ua, um) => `Ese pedido queda fuera de lo que el agente conoce, que son las llamadas al centro de información de Cambridge: restaurantes, hoteles, atracciones, trenes, taxis, hospital y policía. El turno no cae cerca de las regiones de la estructura: acción de usuario más cercana ${a} (umbral ${ua}), situación más parecida de la memoria ${m} (umbral ${um}).`,
   },
@@ -63,6 +64,7 @@ const TEXTOS = {
     error: "The agent could not be reached. Try again in a while.", limite: "You reached the maximum number of turns of this session.",
     soloReplay: "replay only", ficha: (s, n) => `state ${s} · ${n} training turns`, tipicos: "typical user turns",
     probables: "most probable actions",
+    sinHerramienta: "Here an operator would query the database. This agent has no tools yet: it imitates the phrase but does not search, and the places it names come from other conversations.",
     idioma: "The agent only talks in English: its structure and its memory were built from SpokenWOZ conversations, which are in English. Try, for example, “I need a cheap restaurant in the centre”.",
     dominio: (a, m, ua, um) => `That request is outside what the agent knows, which is calls to the Cambridge information centre: restaurants, hotels, attractions, trains, taxis, hospital and police. The turn does not fall near the regions of the structure: closest user action ${a} (threshold ${ua}), most similar memory situation ${m} (threshold ${um}).`,
   },
@@ -240,11 +242,15 @@ function mostrarPaso(p) {
     const d = el("div", "situacion"); d.append(el("span", "sim", s.similarity.toFixed(3)), el("div", null, s.user), el("div", "a", "→ " + s.action), el("div", "r", s.response)); mem.append(d);
   }
 }
+// Turns in which the agent says that it is going to search, as the operators do before querying the database, get a
+// note: the agent has no tools yet, so nothing is searched.
+const BUSQUEDA = /\b(check|checking|look (it |that |them )?up|looking (it |that )?up|search|searching|one moment|a moment|let me see|hold on|bear with me|just a (second|sec|minute))\b/i;
 function burbuja(quien, texto, accion) {
   const b = el("div", "burbuja " + (quien === "User" ? "user" : "system"));
   b.append(el("span", "quien", quien === "User" ? T().usuario : T().agente));
   const txt = el("span"); b.append(txt);
   if (accion) { b.append(el("br"), el("span", "accion", `${T().accion}: ${accion}`)); }
+  if (quien !== "User" && BUSQUEDA.test(texto)) b.append(el("span", "sin-herramienta", T().sinHerramienta));
   $("chat").append(b);
   if (quieto) txt.textContent = texto;
   else { let i = 0; const f = () => { txt.textContent = texto.slice(0, ++i); $("chat").scrollTop = 1e9; if (i < texto.length) setTimeout(f, 12); }; f(); }
@@ -297,14 +303,17 @@ function fueraDeAlcance(b, aviso) {
   b.classList.add("fuera"); $("chat").append(el("div", "aviso fuera", aviso)); $("chat").scrollTop = 1e9;
 }
 const post = (ruta, cuerpo) => fetch(API + ruta, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+let enviando = false;  // one request at a time, so that the turns of the dialogue keep their order
 async function enviar(ev) {
   ev.preventDefault();
+  if (modo !== "vivo" || enviando) return;
   const texto = $("texto").value.trim(); if (!texto) return;
   if (turnosVivo.filter((t) => t.speaker === "user").length >= MAX_TURNOS_VIVO) { $("chat").append(el("div", "aviso", T().limite)); return; }
   $("texto").value = ""; const b = burbuja("User", texto);
   if (pareceEspanol(texto)) { fueraDeAlcance(b, T().idioma); return; }
   const pen = el("div", "pensando", T().pensando); $("chat").append(pen); $("chat").scrollTop = 1e9;
   let agregado = false;
+  enviando = true; $("texto").disabled = true;
   try {
     if (ALCANCE && !turnosVivo.some((t) => t.speaker === "user")) {
       const r = await post("/scope", { text: texto }); if (!r.ok) throw new Error(r.status);
@@ -323,6 +332,7 @@ async function enviar(ev) {
                   options: x.options.slice(0, 6).map((o) => ({ id: o.id, p: o.probability })), decision: x.decision });
     pen.remove(); burbuja("System", x.text, x.action.name); turnosVivo.push({ speaker: "system", text: x.text });
   } catch { pen.remove(); if (agregado) turnosVivo.pop(); $("chat").append(el("div", "aviso error", T().error)); }
+  finally { enviando = false; $("texto").disabled = false; $("texto").focus(); }
 }
 
 // ---- controls

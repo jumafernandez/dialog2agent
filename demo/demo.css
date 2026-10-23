@@ -4,6 +4,8 @@
   --ok: #5ee6a8; --mal: #ff7b8f;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scrollbar-color: rgba(138, 125, 255, 0.45) var(--noche); }
 html, body { margin: 0; background: var(--noche); color: var(--tinta); font-family: Montserrat, system-ui, sans-serif; }
 #fondo { position: fixed; inset: 0; z-index: 0; }
 .app { position: relative; z-index: 1; max-width: 1380px; margin: 0 auto; padding: 22px 20px 28px; }
@@ -44,11 +46,17 @@ select { flex: 1; min-width: 0; }
 .meta { font-size: 13px; color: var(--tenue); line-height: 1.55; border-left: 2px solid var(--violeta); padding: 6px 0 6px 12px; margin-bottom: 10px; }
 .veredicto { font-family: "DM Mono", monospace; font-size: 12px; color: var(--tenue-2); margin-bottom: 12px; min-height: 16px; }
 .veredicto .si { color: var(--ok); } .veredicto .no { color: var(--mal); }
-.chat { display: flex; flex-direction: column; gap: 10px; min-height: 380px; max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.chat { display: flex; flex-direction: column; gap: 10px; min-height: 380px; max-height: 520px; overflow-y: auto; padding-right: 4px;
+        scrollbar-width: thin; scrollbar-color: rgba(138, 125, 255, 0.45) transparent; }
+.chat::-webkit-scrollbar { width: 8px; }
+.chat::-webkit-scrollbar-track { background: transparent; }
+.chat::-webkit-scrollbar-thumb { background: rgba(138, 125, 255, 0.45); border-radius: 8px; }
+.chat::-webkit-scrollbar-thumb:hover { background: var(--cian); }
 .burbuja { max-width: 88%; padding: 10px 13px; border-radius: 14px; font-size: 14.5px; line-height: 1.5; animation: entra 0.35s ease-out; }
 .burbuja.user { align-self: flex-end; background: rgba(77, 226, 255, 0.12); border: 1px solid rgba(77, 226, 255, 0.35); border-bottom-right-radius: 4px; }
 .burbuja.system { align-self: flex-start; background: rgba(138, 125, 255, 0.14); border: 1px solid rgba(138, 125, 255, 0.4); border-bottom-left-radius: 4px; }
 .burbuja .quien { display: block; font-family: "DM Mono", monospace; font-size: 11px; color: var(--tenue); margin-bottom: 3px; }
+.burbuja .sin-herramienta { display: block; margin-top: 8px; padding-top: 7px; border-top: 1px dashed rgba(138, 125, 255, 0.35); font-family: "DM Mono", monospace; font-size: 11px; line-height: 1.45; color: var(--tenue); }
 .burbuja .accion { display: inline-block; margin-top: 6px; font-family: "DM Mono", monospace; font-size: 11.5px; color: var(--magenta); }
 .pensando { align-self: flex-start; font-family: "DM Mono", monospace; font-size: 12px; color: var(--violeta); animation: latido 1s infinite; }
 .aviso { font-family: "DM Mono", monospace; font-size: 12px; color: var(--tenue); text-align: center; padding: 10px; }
