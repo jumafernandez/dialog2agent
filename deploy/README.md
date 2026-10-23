@@ -47,7 +47,10 @@ modal deploy deploy/modal_app.py     # permanent URL
 | GET | `/health` | whether the service is up |
 | GET | `/about` | library version and attribution of the data of the domain artifact |
 | GET | `/structure` | induced actions and states, with the allowed actions of each state |
-| POST | `/respond` | next system turn of a dialogue, with its trace |
+| POST | `/respond` | next system turn of a dialogue, with its trace; `decision` (`score` or `generate`) selects how the action is decided for that request |
+| POST | `/scope` | whether a user turn is within the scope of the domain, when the artifact declares a scope |
+| GET | `/v1/models` | model of the OpenAI-compatible API |
+| POST | `/v1/chat/completions` | the agent through the chat completions API of OpenAI, with the trace in the additional `trace` field |
 
 ```bash
 curl -X POST "$URL/respond" -H "Content-Type: application/json" \

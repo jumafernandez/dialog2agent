@@ -15,8 +15,8 @@ without annotations.
 Keys of ``domain.json``: ``base_model``, ``turn_encoder``, ``context_encoder`` and ``dialogue_encoder`` (model
 names, the last two with optional ``*_revision`` commits), ``k`` and ``conditioned`` (retrieval), ``decision_scale``
 (calibration of the decision), ``max_tokens`` (prompt budget), ``search_triggers`` (actions that call the search
-tool) and ``data`` (name, citation, URL and license of the dialogues from which the artifact was built, which the web
-service shows as attribution).
+tool), ``scope`` (thresholds of the scope of the domain, see ``dialog2agent.scope``) and ``data`` (name, citation, URL
+and license of the dialogues from which the artifact was built, which the web service shows as attribution).
 """
 from __future__ import annotations
 
@@ -25,8 +25,10 @@ from pathlib import Path
 
 
 def load_agent(path: str | Path, device: str | None = None, backend=None, base_model: str | None = None,
-               turn_encoder: str | None = None, adapter: bool = True, decision: str = "score"):
-    """Build an ``Agent`` from a domain artifact.
+               turn_encoder: str | None = None, adapter: bool = True, decision: str = "score",
+               revision: str | None = None):
+    """Build an ``Agent`` from a domain artifact, given as a local directory or as a repository of the Hugging Face
+    Hub, which is downloaded at ``revision``.
 
     ``base_model`` and ``turn_encoder`` replace the models named in ``domain.json``, for example with local copies
     of the same models in a cluster without access to the Hub. ``adapter=False`` loads the base model without the
@@ -37,10 +39,14 @@ def load_agent(path: str | Path, device: str | None = None, backend=None, base_m
     from .decision import LLMScoringDecider
     from .memory import SituationMemory
     from .representations import Dialog2FlowEncoder, TraceDialogEncoder, TraceEncoder
+    from .scope import Scope
     from .structure import InducedStructure
     from .tools import JsonDatabase, ToolRegistry
 
     path = Path(path)
+    if not path.exists():
+        from huggingface_hub import snapshot_download
+        path = Path(snapshot_download(str(path), revision=revision))
     cfg = json.loads((path / "domain.json").read_text())
     with_adapter = None  # unknown when the backend is given
     if backend is None:
@@ -60,6 +66,7 @@ def load_agent(path: str | Path, device: str | None = None, backend=None, base_m
                   dialogue_encoder=TraceDialogEncoder(cfg.get("dialogue_encoder"), device=device,
                                                       revision=cfg.get("dialogue_encoder_revision")),
                   decider=LLMScoringDecider(backend, structure, scale=cfg.get("decision_scale", 1.0)), tools=tools,
-                  k=cfg.get("k", 10), conditioned=cfg.get("conditioned", True), decision=decision)
+                  k=cfg.get("k", 10), conditioned=cfg.get("conditioned", True), decision=decision,
+                  scope=Scope(**cfg["scope"]) if cfg.get("scope") else None)
     agent.metadata = {**cfg, "adapter": with_adapter, "decision": decision}
     return agent

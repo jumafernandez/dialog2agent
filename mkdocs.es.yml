@@ -1,0 +1,18 @@
+# Documentation in Spanish: same configuration, with the pages of docs-es/, built into site/es/.
+INHERIT: mkdocs.yml
+docs_dir: docs-es
+site_dir: site/es
+site_url: https://jumafernandez.github.io/dialog2agent/es/
+site_description: Agentes de diálogo orientados a tareas que deciden sobre estructuras inducidas de tus propias conversaciones.
+theme:
+  language: es
+nav:
+  - Inicio: index.md
+  - Primeros pasos: getting-started.md
+  - Conceptos: concepts.md
+  - Modelos: models.md
+  - Construir un dominio: build-a-domain.md
+  - Servir el agente: serving.md
+  - Evaluación: evaluation.md
+  - Demostración web: demo.md
+  - Referencia de la API: api/index.md

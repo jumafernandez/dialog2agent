@@ -3,6 +3,7 @@ from .agent import Agent
 from .decision import LLMScoringDecider, MemoryVoteDecider, StructureDecider
 from .memory import SituationMemory
 from .prompting import PromptConfig
+from .scope import Scope, ScopeCheck
 from .structure import InducedStructure
 from .tools import JsonDatabase, Tool, ToolRegistry
 from .types import Action, Option, Session, Situation, ToolCall, Turn, TurnResult
@@ -18,6 +19,8 @@ __all__ = [
     "MemoryVoteDecider",
     "Option",
     "PromptConfig",
+    "Scope",
+    "ScopeCheck",
     "Session",
     "Situation",
     "SituationMemory",

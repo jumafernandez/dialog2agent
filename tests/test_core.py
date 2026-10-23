@@ -59,7 +59,7 @@ class FakeBackend:
     def score(self, messages, continuations):
         return [float(len(c)) for c in continuations]
 
-    def generate(self, messages, prefix="", max_new_tokens=120):
+    def generate(self, messages, prefix="", max_new_tokens=120, sample=False):
         return " Hello, how can I help you?"
 
 
@@ -144,6 +144,9 @@ def test_server_responds_with_the_trace():
     assert len(r["situations"]) == 2
     bad = client.post("/respond", json={"turns": [{"speaker": "system", "text": "hi"}]})
     assert bad.status_code == 422
+    g = client.post("/respond", json={"turns": [{"speaker": "user", "text": "hello"}], "decision": "generate"}).json()
+    assert g["decision"] == "generate" and len(g["options"]) == 1 and len(g["allowed"]) >= 1
+    assert client.post("/respond", json={"turns": [{"speaker": "user", "text": "hello"}]}).json()["decision"] == "score"
     chat = client.post("/v1/chat/completions", json={"model": "x", "messages": [
         {"role": "system", "content": "ignored"}, {"role": "user", "content": "hello"}]}).json()
     assert chat["choices"][0]["message"]["content"] == "Hello, how can I help you?"
@@ -162,3 +165,61 @@ def test_generation_decision_projects_the_declared_action():
     agent = Agent(s, m, Writer(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(), k=2, decision="generate")
     r = agent.respond([Turn("user", "hi")])
     assert r.text == "Hello there." and len(r.options) == 1 and r.options[0].probability == 1.0
+
+
+def test_scope_flags_turns_below_either_threshold():
+    import pytest
+
+    from dialog2agent import Scope
+    s = toy_structure()
+    rng = np.random.default_rng(4)
+    m = SituationMemory(rng.normal(size=(5, 16)), [{"user": "hi", "action": "greeting", "response": "hello"}] * 5)
+
+    class ByText:  # the embedding of a turn is the user centroid named by its text, or a random vector
+        def encode(self, texts):
+            return np.stack([s.user_centroids[int(t)] if t.isdigit() else rng.normal(size=8) for t in texts])
+
+    agent = Agent(s, m, FakeBackend(), ByText(), FakeEncoder(), FakeDialogueEncoder(), k=2)
+    with pytest.raises(ValueError):
+        agent.check_scope("0")
+    agent.scope = Scope.calibrate(agent, ["0", "1", "2"], percentile=0, language="en")
+    assert agent.scope.calibration.endswith("3 user turns") and agent.scope.language == "en"
+    c = agent.check_scope("1")
+    assert c.in_scope and np.isclose(c.action_similarity, 1.0)
+    agent.scope.memory_threshold = 2.0  # no situation is that similar
+    assert not agent.check_scope("1").in_scope
+
+
+def test_server_checks_the_scope():
+    import pytest
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from dialog2agent import Scope
+    from dialog2agent.server import create_app
+    s = toy_structure()
+    m = SituationMemory(np.ones((3, 16)), [{"user": "hi", "action": "greeting", "response": "hello"}] * 3)
+    agent = Agent(s, m, FakeBackend(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(), k=2)
+    assert TestClient(create_app(agent)).post("/scope", json={"text": "hello"}).status_code == 404
+    agent.scope = Scope(action_threshold=-1.0, memory_threshold=-1.0, language="en")
+    client = TestClient(create_app(agent))
+    assert client.get("/about").json()["scope"]["language"] == "en"
+    r = client.post("/scope", json={"text": "hello"}).json()
+    assert r["in_scope"] and set(r) == {"in_scope", "action_similarity", "memory_similarity"}
+
+
+def test_artifacts_that_are_not_local_are_downloaded_from_the_hub(tmp_path, monkeypatch):
+    import huggingface_hub
+    import pytest
+
+    from dialog2agent.domain import load_agent
+    calls = []
+
+    def snapshot_download(repo_id, revision=None):
+        calls.append((repo_id, revision))
+        return str(tmp_path)  # an empty directory: loading stops at domain.json
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", snapshot_download)
+    with pytest.raises(FileNotFoundError):
+        load_agent("user/some-domain", revision="abc123")
+    assert calls == [("user/some-domain", "abc123")]

@@ -15,6 +15,7 @@ from .decision import Decider, LLMScoringDecider
 from .memory import SituationMemory
 from .prompting import PromptConfig, action_prefix, messages, parse_output
 from .representations import ContextEncoder, DialogueEncoder, TurnEncoder
+from .scope import Scope, ScopeCheck
 from .structure import InducedStructure
 from .tools import ToolRegistry
 from .types import Action, Option, Session, Turn, TurnResult
@@ -41,13 +42,14 @@ class Agent:
             one) or ``"generate"`` (the model writes the action and the response, as the reference of the
             evaluation; the declared action is projected to the closest induced action).
         retries: with ``"generate"``, how many sampled outputs are tried when the declared action is not allowed.
+        scope: thresholds that tell whether a user turn is within the scope of the domain (see ``Scope``).
     """
 
     def __init__(self, structure: InducedStructure, memory: SituationMemory, backend: LLMBackend,
                  turn_encoder: TurnEncoder, context_encoder: ContextEncoder, dialogue_encoder: DialogueEncoder,
                  decider: Decider | None = None, tools: ToolRegistry | None = None, k: int = 10,
                  conditioned: bool = True, prompt: PromptConfig | None = None, decision: str = "score",
-                 retries: int = 3):
+                 retries: int = 3, scope: Scope | None = None):
         self.structure, self.memory, self.backend = structure, memory, backend
         self.turn_encoder, self.context_encoder, self.dialogue_encoder = turn_encoder, context_encoder, dialogue_encoder
         self.decider = decider or LLMScoringDecider(backend, structure)
@@ -56,13 +58,21 @@ class Agent:
         if decision not in ("score", "generate"):
             raise ValueError(f"unknown decision mode: {decision}")
         self.decision, self.retries = decision, retries
+        self.scope = scope
         self.metadata: dict = {}  # configuration of the domain artifact, including where its data comes from
 
     @classmethod
     def from_pretrained(cls, path: str | Path, **kwargs) -> Agent:
-        """Load an agent from a domain artifact (see ``dialog2agent.domain``)."""
+        """Load an agent from a domain artifact, a local directory or a repository of the Hugging Face Hub (see
+        ``dialog2agent.domain``)."""
         from .domain import load_agent
         return load_agent(path, **kwargs)
+
+    def check_scope(self, text: str) -> ScopeCheck:
+        """Whether a user turn is within the scope of the domain, with the value of each signal."""
+        if self.scope is None:
+            raise ValueError("the agent has no scope; calibrate one with Scope.calibrate")
+        return self.scope.check(self, text)
 
     def new_session(self) -> Session:
         return Session()

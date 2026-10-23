@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dialog2agent · demo</title>
+<meta name="description" content="A task-oriented dialogue agent that decides over actions induced from real conversations, with a memory of other conversations and without annotations.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Montserrat:wght@400;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<canvas id="fondo" aria-hidden="true"></canvas>
+<div class="app">
+  <header>
+    <div>
+      <h1>dialog2agent</h1>
+      <p class="lema" data-i18n="lema"></p>
+    </div>
+    <div class="cabecera-derecha">
+      <div class="idiomas" role="group" aria-label="Idioma / Language">
+        <button data-lang="es">ES</button><button data-lang="en">EN</button>
+      </div>
+      <div class="chips">
+        <span class="chip modo" id="modo"></span>
+        <span class="chip">SpokenWOZ</span>
+        <span class="chip">Qwen 3.5 9B + LoRA</span>
+        <span class="chip">TRACE · TRACE-Dialog</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="panel decisores" aria-labelledby="t-decisor">
+    <p class="titulo"><span id="t-decisor" data-i18n="decisor"></span><span data-i18n="decisorNota"></span></p>
+    <div class="opciones-decisor" id="decisores"></div>
+    <p class="nota-decisor" data-i18n="decisorExplica"></p>
+  </section>
+
+  <div class="grilla">
+    <section class="panel conversacion">
+      <p class="titulo"><span data-i18n="conversacion"></span><span id="contador"></span></p>
+      <div class="selector-meta">
+        <label for="meta-sel" data-i18n="metaSel"></label>
+        <select id="meta-sel"></select>
+      </div>
+      <div class="meta" id="meta"></div>
+      <div class="veredicto" id="veredicto"></div>
+      <div class="chat" id="chat" aria-live="polite"></div>
+      <form class="entrada" id="entrada" hidden>
+        <input id="texto" maxlength="500" autocomplete="off">
+        <button type="submit" data-i18n="enviar"></button>
+      </form>
+      <div class="controles">
+        <button id="play"></button>
+        <button id="sig" data-i18n="siguiente"></button>
+        <button id="reinicio" data-i18n="reiniciar"></button>
+        <button id="vivo" class="vivo" data-i18n="conversar"></button>
+      </div>
+    </section>
+    <div class="derecha">
+      <section class="panel">
+        <p class="titulo"><span data-i18n="estructura"></span><span id="tam-estructura"></span></p>
+        <div class="lienzo">
+          <canvas id="grafo" aria-label="estructura inducida"></canvas>
+          <div class="ficha" id="ficha" hidden></div>
+        </div>
+        <div class="estado-actual" id="estado"></div>
+      </section>
+      <div class="dos">
+        <section class="panel">
+          <p class="titulo"><span data-i18n="decision"></span><span id="permitidas"></span></p>
+          <div id="opciones"></div>
+          <div class="nota" id="nota-decision"></div>
+        </section>
+        <section class="panel">
+          <p class="titulo"><span data-i18n="memoria"></span><span data-i18n="memoriaNota"></span></p>
+          <div id="memoria"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <footer>
+    <span id="atribucion"></span>
+    <span class="enlaces">
+      <a href="https://github.com/jumafernandez/dialog2agent">dialog2agent</a>
+      <a href="https://github.com/jumafernandez/doctorado-unsl" data-i18n="tesis"></a>
+      <a href="https://huggingface.co/jumafernandez/trace-deep-ar">TRACE</a>
+      <a href="https://huggingface.co/jumafernandez/trace-dialog-deep-tod">TRACE-Dialog</a>
+    </span>
+  </footer>
+</div>
+<script src="demo.js"></script>
+</body>
+</html>

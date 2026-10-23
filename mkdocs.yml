@@ -1,7 +1,11 @@
 site_name: dialog2agent
+site_url: https://jumafernandez.github.io/dialog2agent/
 site_description: Build task-oriented dialogue agents that decide over structures induced from your own conversations.
+repo_url: https://github.com/jumafernandez/dialog2agent
+repo_name: jumafernandez/dialog2agent
 theme:
   name: material
+  language: en
   features: [navigation.sections, content.code.copy]
   palette:
     - scheme: default
@@ -10,11 +14,22 @@ theme:
     - scheme: slate
       primary: deep purple
       toggle: {icon: material/weather-sunny, name: Light mode}
+# language selector of the header: the English documentation at the root of the site and the Spanish one under es/
+extra:
+  alternate:
+    - name: English
+      link: /dialog2agent/
+      lang: en
+    - name: Español
+      link: /dialog2agent/es/
+      lang: es
 nav:
   - Home: index.md
   - Getting started: getting-started.md
   - Concepts: concepts.md
+  - Models: models.md
   - Build your own domain: build-a-domain.md
+  - Serving the agent: serving.md
   - Evaluation: evaluation.md
   - Web demo: demo.md
   - API reference: api/index.md
@@ -26,5 +41,6 @@ plugins:
           paths: [src]
 markdown_extensions:
   - admonition
+  - attr_list
   - pymdownx.superfences
   - tables

@@ -76,7 +76,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     def agent_options(p):
-        p.add_argument("domain", help="directory of the domain artifact")
+        p.add_argument("domain", help="directory of the domain artifact, or its repository on the Hugging Face Hub")
         p.add_argument("--device")
         p.add_argument("--base-model", help="replaces the base model of domain.json (for example, a local copy)")
         p.add_argument("--turn-encoder", help="replaces the turn encoder of domain.json (for example, a local copy)")

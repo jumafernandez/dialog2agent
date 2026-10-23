@@ -8,6 +8,8 @@
 
 ::: dialog2agent.decision
 
+::: dialog2agent.scope
+
 ::: dialog2agent.tools
 
 ::: dialog2agent.backends
@@ -17,5 +19,7 @@
 ::: dialog2agent.domain
 
 ::: dialog2agent.evaluation
+
+::: dialog2agent.server
 
 ::: dialog2agent.types
