@@ -1,6 +1,7 @@
 """dialog2agent: build task-oriented dialogue agents that decide over structures induced from your own conversations."""
 from .agent import Agent
 from .decision import LLMScoringDecider, MemoryVoteDecider, StructureDecider
+from .extraction import ConstraintExtractor
 from .memory import SituationMemory
 from .prompting import PromptConfig
 from .scope import Scope, ScopeCheck
@@ -13,6 +14,7 @@ __version__ = "0.1.0.dev0"
 __all__ = [
     "Action",
     "Agent",
+    "ConstraintExtractor",
     "InducedStructure",
     "JsonDatabase",
     "LLMScoringDecider",

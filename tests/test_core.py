@@ -223,3 +223,75 @@ def test_artifacts_that_are_not_local_are_downloaded_from_the_hub(tmp_path, monk
     with pytest.raises(FileNotFoundError):
         load_agent("user/some-domain", revision="abc123")
     assert calls == [("user/some-domain", "abc123")]
+
+
+def toy_database(tmp_path):
+    import json
+    (tmp_path / "restaurant_db.json").write_text(json.dumps([
+        {"name": "Pizza Hut City Centre", "area": "centre", "pricerange": "cheap", "food": "italian", "id": "1",
+         "phone": "01223323737"},
+        {"name": "The Golden Curry", "area": "centre", "pricerange": "expensive", "food": "indian", "id": "2"}]))
+    (tmp_path / "train_db.json").write_text(json.dumps([
+        {"trainID": "TR1", "departure": "ely", "destination": "cambridge", "day": "monday", "leaveAt": "08:00",
+         "arriveBy": "08:30"},
+        {"trainID": "TR2", "departure": "ely", "destination": "cambridge", "day": "monday", "leaveAt": "10:00",
+         "arriveBy": "10:30"}]))
+    (tmp_path / "taxi_db.json").write_text(json.dumps([{"taxi_colors": ["black"], "taxi_types": ["volvo"],
+                                                        "taxi_phone": ["^[0-9]{10}$"]}]))
+    (tmp_path / "booking.json").write_text(json.dumps({"restaurant": ["people", "day", "time"]}))
+    from dialog2agent.tools import JsonDatabase
+    return JsonDatabase(tmp_path)
+
+
+def test_database_search_book_and_schema(tmp_path):
+    db = toy_database(tmp_path)
+    r = db.search("restaurant", {"area": "centre", "pricerange": "dontcare", "people": "2"})
+    assert r["count"] == 2 and "id" not in r["entities"][0]
+    assert db.search("restaurant", {"food": "Italian"})["entities"][0]["name"] == "Pizza Hut City Centre"
+    assert [e["trainID"] for e in db.search("train", {"leaveAt": "09:00"})["entities"]] == ["TR2"]
+    assert db.book("restaurant", {"name": "golden curry", "people": "2"})["booked"]
+    assert not db.book("restaurant", {"food": "chinese"})["booked"]
+    taxi = db.book("taxi", {"departure": "ely", "destination": "cambridge"})
+    assert taxi["booked"] and taxi["type"] == "volvo" and taxi["color"] == "black" and len(taxi["phone"]) == 10
+    assert taxi == db.book("taxi", {"departure": "ely", "destination": "cambridge"})  # same booking, same reference
+    schema = db.schema()
+    assert schema["restaurant"]["food"] == ["indian", "italian"] and schema["restaurant"]["name"] is None
+    assert schema["restaurant"]["people"] is None and "phone" not in schema["restaurant"]
+
+
+def test_extractor_checks_the_output_against_the_schema(tmp_path):
+    from dialog2agent import ConstraintExtractor
+    db = toy_database(tmp_path)
+
+    class Writer(FakeBackend):
+        def generate(self, messages, prefix="", max_new_tokens=120, sample=False):
+            assert prefix == "{" and "restaurant:" in messages[0]["content"]
+            return ('"restaurant": {"food": "Italian", "area": "north pole", "colour": "red", "people": "2"}, '
+                    '"spaceship": {"speed": "fast"}} and some text')
+
+    out = ConstraintExtractor(Writer(), db.schema()).extract([Turn("user", "cheap italian food for two, please")])
+    assert out == {"restaurant": {"food": "italian", "people": "2"}}
+
+
+def test_tool_actions_call_the_tool_with_extracted_constraints(tmp_path):
+    from dialog2agent import ConstraintExtractor
+    from dialog2agent.tools import ToolRegistry
+    db = toy_database(tmp_path)
+    s = toy_structure()
+    m = SituationMemory(np.ones((3, 16)), [{"user": "hi", "action": "greeting", "response": "hello", "state": 0,
+                                            "action_id": 0}] * 3)
+
+    class Writer(FakeBackend):
+        def generate(self, messages, prefix="", max_new_tokens=120, sample=False):
+            if prefix == "{":
+                return '"restaurant": {"food": "italian"}, "train": {"day": "monday"}}'
+            assert "Tool results" in messages[0]["content"] and "Pizza Hut" in messages[0]["content"]
+            return " There is Pizza Hut City Centre."
+
+    tools = ToolRegistry()
+    tools.register(db.as_tool(), actions=[0, 1, 2, 3])
+    agent = Agent(s, m, Writer(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(), decider=StructureDecider(s),
+                  k=2, tools=tools, extractor=ConstraintExtractor(Writer(), db.schema()))
+    r = agent.turn(agent.new_session(), "something italian")
+    assert [c.name for c in r.tool_calls] == ["search"] and r.tool_calls[0].arguments["domain"] == "restaurant"
+    assert r.text == "There is Pizza Hut City Centre."

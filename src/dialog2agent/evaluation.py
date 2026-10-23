@@ -13,6 +13,7 @@ Format of the dialogues (JSON lines)::
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 from .types import Turn
@@ -54,7 +55,8 @@ def predict(agent, dialogues: list[dict], output: str | Path, write: bool = True
                     "dialogue_id": d["dialogue_id"], "turn_id": i, "state": r.state,
                     "allowed": agent.structure.allowed(r.state), "action": r.action.id, "action_name": r.action.name,
                     "probability": r.options[0].probability, "reference_action": ref,
-                    "reference_action_name": names[ref], "response": r.text, "reference": turns[i].text},
+                    "reference_action_name": names[ref], "response": r.text, "reference": turns[i].text,
+                    "tool_calls": [asdict(c) for c in r.tool_calls]},
                     ensure_ascii=False) + "\n")
                 f.flush()
                 n += 1

@@ -17,7 +17,8 @@ INSTRUCTION_ACTION = (" First declare the action of your turn on a line starting
 INSTRUCTION_NAMES = " Use the action names shown below."
 INSTRUCTION_MEMORY = " Similar situations from other conversations show what the system did next."
 INSTRUCTION_GUIDE = " The allowed actions are the ones the system usually performs in the current state."
-INSTRUCTION_TOOLS = " Use the information returned by the tools when you mention entities or their attributes."
+INSTRUCTION_TOOLS = (" Use the information returned by the tools when you mention entities or their attributes, and "
+                     "if a search returns no entity, say that there is none.")
 MAX_CHARS = 300
 
 
@@ -28,6 +29,7 @@ class PromptConfig:
     memory: bool = True
     guide: bool = True
     action: bool = True
+    tool_message: bool = False  # tool results as a message of the tool role after the last turn (else in the system)
 
 
 def truncate(text: str, n: int = MAX_CHARS) -> str:
@@ -54,7 +56,7 @@ def system_message(situations: list[Situation], allowed: list[str], config: Prom
         text += "\n\nSimilar situations:\n" + "\n".join(lines)
     if config.guide and allowed:
         text += "\n\nAllowed actions in the current state:\n" + "\n".join(f"- {a}" for a in allowed)
-    if tool_results:
+    if tool_results and not config.tool_message:
         text += "\n\nTool results:\n" + "\n".join(tool_results)
     return text
 
@@ -62,6 +64,8 @@ def system_message(situations: list[Situation], allowed: list[str], config: Prom
 def messages(turns: list[Turn], situations: list[Situation], allowed: list[str], config: PromptConfig,
              tool_results: list[str] | None = None) -> list[dict]:
     chat = [{"role": "user" if t.speaker == "user" else "assistant", "content": t.text} for t in turns]
+    if tool_results and config.tool_message:
+        chat.append({"role": "tool", "content": "\n".join(tool_results)})
     return [{"role": "system", "content": system_message(situations, allowed, config, tool_results)}] + chat
 
 

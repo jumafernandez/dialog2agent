@@ -5,19 +5,19 @@
 
 const API = "https://jumafernandez--dialog2agent-spokenwoz-service-web.us-east.modal.run";
 const MAX_TURNOS_VIVO = 12;
-// Reference metrics of chapter X (SpokenWOZ test) and of the closed-loop simulation (exploratory sample, 100 goals).
+// Reference metrics of chapter X (SpokenWOZ test) and of the closed-loop simulation (confirmation sample, 400 goals).
 const VARIANTES = {
-  puntuacion: { decision: "score", vivo: true, exactitud: 0.557, comb: 85.6, meta: 0.68 },
-  generacion: { decision: "generate", vivo: true, exactitud: 0.422, comb: 71.7, meta: 0.58 },
-  sin_adaptar: { decision: null, vivo: false, exactitud: null, comb: 61.4, meta: 0.55 },
+  puntuacion: { decision: "score", vivo: true, exactitud: 0.557, comb: 85.6, meta: 0.640 },
+  generacion: { decision: "generate", vivo: true, exactitud: 0.422, comb: 71.7, meta: 0.578 },
+  sin_adaptar: { decision: null, vivo: false, exactitud: null, comb: 61.4, meta: 0.585 },
 };
-const DECIMALES = { exactitud: 3, comb: 1, meta: 2 };
+const DECIMALES = { exactitud: 3, comb: 1, meta: 3 };
 
 const TEXTOS = {
   es: {
     lema: "Un agente de diálogo orientado a tareas que decide sobre acciones inducidas de conversaciones reales, con memoria de otras conversaciones y sin anotaciones.",
     decisor: "Cómo decide el agente", decisorNota: "métricas de referencia",
-    decisorExplica: "El decisor tipo Jev sigue la idea de los modelos de decisión de TypeSafe AI: en lugar de escribir la acción, puntúa cada opción de un conjunto definido de antemano, acá las acciones permitidas en el estado de la conversación, y devuelve una probabilidad para cada una. Lo implementamos de forma abierta con el mismo LLM adaptado. Las otras dos variantes escriben la acción libremente. Exactitud de la acción y Comb (Inform, Success y BLEU) sobre los 1.000 diálogos de prueba de SpokenWOZ; meta cumplida según un juez (Claude Opus 5.5) en 100 conversaciones con usuarios simulados con SDialog.",
+    decisorExplica: "El decisor tipo Jev sigue la idea de los modelos de decisión de TypeSafe AI: en lugar de escribir la acción, puntúa cada opción de un conjunto definido de antemano, acá las acciones permitidas en el estado de la conversación, y devuelve una probabilidad para cada una. Lo implementamos de forma abierta con el mismo LLM adaptado. Las otras dos variantes escriben la acción libremente. Exactitud de la acción y Comb (Inform, Success y BLEU) sobre los 1.000 diálogos de prueba de SpokenWOZ; meta cumplida según un juez (Claude Opus 5.5) en las 400 conversaciones por variante de la muestra de confirmación con usuarios simulados con SDialog; el replay muestra conversaciones de la primera simulación.",
     nombres: { puntuacion: "Decisor tipo Jev (abierto)", generacion: "LLM que genera la acción", sin_adaptar: "LLM sin adaptar" },
     como: { puntuacion: "puntúa las acciones permitidas del estado y devuelve una probabilidad para cada una", generacion: "el mismo modelo adaptado escribe la acción", sin_adaptar: "el modelo base, solo con el prompt" },
     exactitud: "exactitud", comb: "Comb", meta: "meta cumplida",
@@ -44,7 +44,7 @@ const TEXTOS = {
   en: {
     lema: "A task-oriented dialogue agent that decides over actions induced from real conversations, with a memory of other conversations and without annotations.",
     decisor: "How the agent decides", decisorNota: "reference metrics",
-    decisorExplica: "The Jev-style decider follows the idea of the decision models of TypeSafe AI: instead of writing the action, it scores every option of a set defined in advance, here the actions allowed in the state of the conversation, and returns a probability for each one. We implemented it openly with the same adapted LLM. The other two variants write the action freely. Action accuracy and Comb (Inform, Success and BLEU) on the 1,000 SpokenWOZ test dialogues; goal completion according to a judge (Claude Opus 5.5) on 100 conversations with users simulated with SDialog.",
+    decisorExplica: "The Jev-style decider follows the idea of the decision models of TypeSafe AI: instead of writing the action, it scores every option of a set defined in advance, here the actions allowed in the state of the conversation, and returns a probability for each one. We implemented it openly with the same adapted LLM. The other two variants write the action freely. Action accuracy and Comb (Inform, Success and BLEU) on the 1,000 SpokenWOZ test dialogues; goal completion according to a judge (Claude Opus 5.5) on the 400 conversations per variant of the confirmation sample with users simulated with SDialog; the replay shows conversations of the first simulation.",
     nombres: { puntuacion: "Jev-style decider (open)", generacion: "LLM generating the action", sin_adaptar: "Unadapted LLM" },
     como: { puntuacion: "scores the allowed actions of the state and returns a probability for each one", generacion: "the same adapted model writes the action", sin_adaptar: "the base model, with the prompt only" },
     exactitud: "accuracy", comb: "Comb", meta: "goal completed",

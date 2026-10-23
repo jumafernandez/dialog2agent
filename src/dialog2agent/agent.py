@@ -6,12 +6,14 @@ demo call ``turn``, so that what is shown is what was evaluated.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 
 from .backends import LLMBackend
 from .decision import Decider, LLMScoringDecider
+from .extraction import ConstraintExtractor
 from .memory import SituationMemory
 from .prompting import PromptConfig, action_prefix, messages, parse_output
 from .representations import ContextEncoder, DialogueEncoder, TurnEncoder
@@ -43,13 +45,15 @@ class Agent:
             evaluation; the declared action is projected to the closest induced action).
         retries: with ``"generate"``, how many sampled outputs are tried when the declared action is not allowed.
         scope: thresholds that tell whether a user turn is within the scope of the domain (see ``Scope``).
+        extractor: writes the constraints of the user when the decided action calls a tool and the caller does not
+            give them (see ``dialog2agent.extraction``).
     """
 
     def __init__(self, structure: InducedStructure, memory: SituationMemory, backend: LLMBackend,
                  turn_encoder: TurnEncoder, context_encoder: ContextEncoder, dialogue_encoder: DialogueEncoder,
                  decider: Decider | None = None, tools: ToolRegistry | None = None, k: int = 10,
                  conditioned: bool = True, prompt: PromptConfig | None = None, decision: str = "score",
-                 retries: int = 3, scope: Scope | None = None):
+                 retries: int = 3, scope: Scope | None = None, extractor: ConstraintExtractor | None = None):
         self.structure, self.memory, self.backend = structure, memory, backend
         self.turn_encoder, self.context_encoder, self.dialogue_encoder = turn_encoder, context_encoder, dialogue_encoder
         self.decider = decider or LLMScoringDecider(backend, structure)
@@ -58,7 +62,7 @@ class Agent:
         if decision not in ("score", "generate"):
             raise ValueError(f"unknown decision mode: {decision}")
         self.decision, self.retries = decision, retries
-        self.scope = scope
+        self.scope, self.extractor = scope, extractor
         self.metadata: dict = {}  # configuration of the domain artifact, including where its data comes from
 
     @classmethod
@@ -108,13 +112,17 @@ class Agent:
         action = options[0].action
 
         tool_calls = []
-        tool = self.tools.for_action(action.name)
+        tool = self.tools.for_action(action)
+        if tool is not None and not constraints and self.extractor is not None:
+            # the extractor writes first the service of the current request, which is the one the tool acts on
+            constraints = dict(list(self.extractor.extract(list(turns)).items())[:1])
         if tool is not None and constraints:
             for domain, values in constraints.items():
                 tool_calls.append(tool(domain=domain, constraints=values))
         if tool_calls:
             chat = messages(context, situations, names, self.prompt,
-                            tool_results=[f"{c.name}({c.arguments}) -> {c.result}" for c in tool_calls])
+                            tool_results=[f"{c.name}({json.dumps(c.arguments, ensure_ascii=False)}) -> "
+                                          f"{json.dumps(c.result, ensure_ascii=False)}" for c in tool_calls])
         text = self.backend.generate(chat, prefix=action_prefix(action.name)).strip() if write else ""
         return TurnResult(text=text, action=action, state=state, options=options, situations=situations,
                           tool_calls=tool_calls)
