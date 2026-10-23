@@ -22,6 +22,14 @@ when nobody uses the agent.
   five minutes without requests (`scaledown_window=300`). Requests are answered one at a time, since the replica
   holds a single model on the GPU. A workspace budget in Modal caps the monthly spend.
 
+## Data and license
+
+The SpokenWOZ artifact contains data derived from SpokenWOZ (Si et al., 2023), which is distributed under
+CC BY-NC 4.0, so the artifact and any service that shows its situations are for non-commercial use only and must
+give attribution. The artifact declares its data source in `domain.json` (`data`), and the service returns it in
+`/about` and `/structure`, so that any interface built on the API can display it. The library and the TRACE
+encoders are distributed under Apache-2.0 and contain no SpokenWOZ data.
+
 ## Steps
 
 ```bash
@@ -37,6 +45,7 @@ modal deploy deploy/modal_app.py     # permanent URL
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | whether the service is up |
+| GET | `/about` | library version and attribution of the data of the domain artifact |
 | GET | `/structure` | induced actions and states, with the allowed actions of each state |
 | POST | `/respond` | next system turn of a dialogue, with its trace |
 

@@ -137,9 +137,28 @@ def test_server_responds_with_the_trace():
                   decider=StructureDecider(s), k=2)
     client = TestClient(create_app(agent))
     assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/about").json()["library"] == "dialog2agent"
     assert len(client.get("/structure").json()["states"]) == 2
     r = client.post("/respond", json={"turns": [{"speaker": "user", "text": "hello"}]}).json()
     assert r["text"] == "Hello, how can I help you?" and r["action"]["id"] in s.allowed(r["state"])
     assert len(r["situations"]) == 2
     bad = client.post("/respond", json={"turns": [{"speaker": "system", "text": "hi"}]})
     assert bad.status_code == 422
+    chat = client.post("/v1/chat/completions", json={"model": "x", "messages": [
+        {"role": "system", "content": "ignored"}, {"role": "user", "content": "hello"}]}).json()
+    assert chat["choices"][0]["message"]["content"] == "Hello, how can I help you?"
+    assert chat["trace"]["state"] == r["state"]
+
+
+def test_generation_decision_projects_the_declared_action():
+    s = toy_structure()
+    m = SituationMemory(np.ones((3, 16)), [{"user": "hi", "action": "greeting", "response": "hello", "state": 0,
+                                            "action_id": 0}] * 3)
+
+    class Writer(FakeBackend):
+        def generate(self, messages, prefix="", max_new_tokens=120, sample=False):
+            return "Action: greeting\nResponse: Hello there."
+
+    agent = Agent(s, m, Writer(), FakeEncoder(), FakeEncoder(), FakeDialogueEncoder(), k=2, decision="generate")
+    r = agent.respond([Turn("user", "hi")])
+    assert r.text == "Hello there." and len(r.options) == 1 and r.options[0].probability == 1.0

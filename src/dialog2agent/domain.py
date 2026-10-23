@@ -14,8 +14,9 @@ without annotations.
 
 Keys of ``domain.json``: ``base_model``, ``turn_encoder``, ``context_encoder`` and ``dialogue_encoder`` (model
 names, the last two with optional ``*_revision`` commits), ``k`` and ``conditioned`` (retrieval), ``decision_scale``
-(calibration of the decision), ``max_tokens`` (prompt budget) and ``search_triggers`` (actions that call the search
-tool).
+(calibration of the decision), ``max_tokens`` (prompt budget), ``search_triggers`` (actions that call the search
+tool) and ``data`` (name, citation, URL and license of the dialogues from which the artifact was built, which the web
+service shows as attribution).
 """
 from __future__ import annotations
 
@@ -24,11 +25,12 @@ from pathlib import Path
 
 
 def load_agent(path: str | Path, device: str | None = None, backend=None, base_model: str | None = None,
-               turn_encoder: str | None = None):
+               turn_encoder: str | None = None, adapter: bool = True, decision: str = "score"):
     """Build an ``Agent`` from a domain artifact.
 
     ``base_model`` and ``turn_encoder`` replace the models named in ``domain.json``, for example with local copies
-    of the same models in a cluster without access to the Hub.
+    of the same models in a cluster without access to the Hub. ``adapter=False`` loads the base model without the
+    adapter of the artifact, and ``decision`` selects how the action is decided (see ``Agent``).
     """
     from .agent import Agent
     from .backends import TransformersBackend
@@ -40,20 +42,24 @@ def load_agent(path: str | Path, device: str | None = None, backend=None, base_m
 
     path = Path(path)
     cfg = json.loads((path / "domain.json").read_text())
+    with_adapter = None  # unknown when the backend is given
     if backend is None:
-        adapter = path / "adapter" if (path / "adapter").exists() else None
+        lora = path / "adapter" if adapter and (path / "adapter").exists() else None
+        with_adapter = lora is not None
         backend = TransformersBackend.from_pretrained(base_model or cfg["base_model"],
-                                                      adapter=str(adapter) if adapter else None, device=device,
+                                                      adapter=str(lora) if lora else None, device=device,
                                                       max_tokens=cfg.get("max_tokens", 2048))
     tools = ToolRegistry()
     if (path / "db").exists():
         tools.register(JsonDatabase(path / "db").as_tool(), triggered_by=cfg.get("search_triggers", []))
     structure = InducedStructure.load(path / "structure")
-    return Agent(structure=structure, memory=SituationMemory.load(path / "memory"), backend=backend,
-                 turn_encoder=Dialog2FlowEncoder(turn_encoder or cfg["turn_encoder"], device=device),
-                 context_encoder=TraceEncoder(cfg.get("context_encoder"), device=device,
-                                              revision=cfg.get("context_encoder_revision")),
-                 dialogue_encoder=TraceDialogEncoder(cfg.get("dialogue_encoder"), device=device,
-                                                     revision=cfg.get("dialogue_encoder_revision")),
-                 decider=LLMScoringDecider(backend, structure, scale=cfg.get("decision_scale", 1.0)), tools=tools,
-                 k=cfg.get("k", 10), conditioned=cfg.get("conditioned", True))
+    agent = Agent(structure=structure, memory=SituationMemory.load(path / "memory"), backend=backend,
+                  turn_encoder=Dialog2FlowEncoder(turn_encoder or cfg["turn_encoder"], device=device),
+                  context_encoder=TraceEncoder(cfg.get("context_encoder"), device=device,
+                                               revision=cfg.get("context_encoder_revision")),
+                  dialogue_encoder=TraceDialogEncoder(cfg.get("dialogue_encoder"), device=device,
+                                                      revision=cfg.get("dialogue_encoder_revision")),
+                  decider=LLMScoringDecider(backend, structure, scale=cfg.get("decision_scale", 1.0)), tools=tools,
+                  k=cfg.get("k", 10), conditioned=cfg.get("conditioned", True), decision=decision)
+    agent.metadata = {**cfg, "adapter": with_adapter, "decision": decision}
+    return agent

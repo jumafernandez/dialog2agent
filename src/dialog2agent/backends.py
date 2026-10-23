@@ -15,8 +15,9 @@ class LLMBackend(Protocol):
     def score(self, messages: list[dict], continuations: list[str]) -> list[float]:
         """Sum of the log-probabilities of each continuation after the chat prompt."""
 
-    def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120) -> str:
-        """Greedy continuation of the chat prompt, starting after ``prefix``."""
+    def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120,
+                 sample: bool = False) -> str:
+        """Continuation of the chat prompt after ``prefix``: greedy, or sampled when ``sample`` is True."""
 
 
 def _fit(messages: list[dict], count, budget: int) -> list[dict]:
@@ -90,13 +91,15 @@ class TransformersBackend:
         return scores
 
     @torch.no_grad()
-    def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120) -> str:
+    def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120,
+                 sample: bool = False) -> str:
         # The prefix is tokenized together with the prompt and the budget only reserves the new tokens, as in the
-        # evaluation of the published adapters.
+        # evaluation of the published adapters. Sampling uses the settings of the evaluation (T = 0.7, top-p = 0.95).
         fitted = _fit(messages, lambda m: len(self._ids(self._template(m))), self.max_tokens - max_new_tokens)
         ids = torch.tensor([self._ids(self._template(fitted) + prefix)], device=self.device)
+        mode = {"do_sample": True, "temperature": 0.7, "top_p": 0.95} if sample else {"do_sample": False}
         out = self.model.generate(input_ids=ids, attention_mask=torch.ones_like(ids), max_new_tokens=max_new_tokens,
-                                  do_sample=False, pad_token_id=self.pad, eos_token_id=self.eos)
+                                  pad_token_id=self.pad, eos_token_id=self.eos, **mode)
         return self.tokenizer.decode(out[0, ids.shape[1]:], skip_special_tokens=True)
 
 
@@ -113,5 +116,6 @@ class OpenAICompatibleBackend:
     def score(self, messages: list[dict], continuations: list[str]) -> list[float]:
         raise NotImplementedError("scoring through an inference server is planned for the web demo")
 
-    def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120) -> str:
+    def generate(self, messages: list[dict], prefix: str = "", max_new_tokens: int = 120,
+                 sample: bool = False) -> str:
         raise NotImplementedError("generation through an inference server is planned for the web demo")

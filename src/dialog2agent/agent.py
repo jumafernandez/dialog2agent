@@ -13,11 +13,11 @@ import numpy as np
 from .backends import LLMBackend
 from .decision import Decider, LLMScoringDecider
 from .memory import SituationMemory
-from .prompting import PromptConfig, action_prefix, messages
+from .prompting import PromptConfig, action_prefix, messages, parse_output
 from .representations import ContextEncoder, DialogueEncoder, TurnEncoder
 from .structure import InducedStructure
 from .tools import ToolRegistry
-from .types import Session, Turn, TurnResult
+from .types import Action, Option, Session, Turn, TurnResult
 
 MAX_CONTEXT_TURNS = 12
 
@@ -37,17 +37,26 @@ class Agent:
         k: number of retrieved situations.
         conditioned: whether retrieval is conditioned by the structure.
         prompt: components of the prompt.
+        decision: ``"score"`` (the decider chooses among the allowed actions and the model writes after the chosen
+            one) or ``"generate"`` (the model writes the action and the response, as the reference of the
+            evaluation; the declared action is projected to the closest induced action).
+        retries: with ``"generate"``, how many sampled outputs are tried when the declared action is not allowed.
     """
 
     def __init__(self, structure: InducedStructure, memory: SituationMemory, backend: LLMBackend,
                  turn_encoder: TurnEncoder, context_encoder: ContextEncoder, dialogue_encoder: DialogueEncoder,
                  decider: Decider | None = None, tools: ToolRegistry | None = None, k: int = 10,
-                 conditioned: bool = True, prompt: PromptConfig | None = None):
+                 conditioned: bool = True, prompt: PromptConfig | None = None, decision: str = "score",
+                 retries: int = 3):
         self.structure, self.memory, self.backend = structure, memory, backend
         self.turn_encoder, self.context_encoder, self.dialogue_encoder = turn_encoder, context_encoder, dialogue_encoder
         self.decider = decider or LLMScoringDecider(backend, structure)
         self.tools = tools or ToolRegistry()
         self.k, self.conditioned, self.prompt = k, conditioned, prompt or PromptConfig()
+        if decision not in ("score", "generate"):
+            raise ValueError(f"unknown decision mode: {decision}")
+        self.decision, self.retries = decision, retries
+        self.metadata: dict = {}  # configuration of the domain artifact, including where its data comes from
 
     @classmethod
     def from_pretrained(cls, path: str | Path, **kwargs) -> Agent:
@@ -81,6 +90,10 @@ class Agent:
             context = context[1:]
         names = sorted({self.structure.names[a] for a in allowed})
         chat = messages(context, situations, names, self.prompt)
+        if self.decision == "generate":
+            action, text = self._generate(chat, allowed)
+            return TurnResult(text=text, action=action, state=state,
+                              options=[Option(action=action, probability=1.0, score=0.0)], situations=situations)
         options = self.decider.decide(chat, state, allowed, situations)
         action = options[0].action
 
@@ -95,6 +108,21 @@ class Agent:
         text = self.backend.generate(chat, prefix=action_prefix(action.name)).strip() if write else ""
         return TurnResult(text=text, action=action, state=state, options=options, situations=situations,
                           tool_calls=tool_calls)
+
+    def _generate(self, chat: list[dict], allowed: list[int]) -> tuple[Action, str]:
+        """Decision by generation, as in the evaluation of the agent: the model writes the action and the response,
+        the declared action is projected to the closest induced action and, if that action is not allowed, the
+        output is sampled again up to ``retries`` times, keeping the first output when no sample is allowed."""
+        first = None
+        for attempt in range(self.retries + 1):
+            name, text = parse_output(self.backend.generate(chat, sample=attempt > 0))
+            region = int(self.structure.system_action(self.turn_encoder.encode([name]))[0]) if name else -1
+            first = first or (name, text, region)
+            if region in allowed:
+                break
+        else:
+            name, text, region = first
+        return (self.structure.action(region) if region >= 0 else Action(id=-1, name=name or "")), text
 
     def turn(self, session: Session, user_text: str) -> TurnResult:
         """Process a user turn of a session and return the response with the full trace of the decision."""

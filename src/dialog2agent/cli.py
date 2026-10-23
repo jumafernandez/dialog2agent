@@ -31,7 +31,7 @@ def load(args):
         raise SystemExit(f"no accelerator visible on {os.uname().nodename}")
     print(f"loading {args.domain} on {device} ({os.uname().nodename})", flush=True)
     return Agent.from_pretrained(args.domain, device=device, base_model=args.base_model,
-                                 turn_encoder=args.turn_encoder)
+                                 turn_encoder=args.turn_encoder, adapter=not args.no_adapter, decision=args.decision)
 
 
 def chat(args) -> None:
@@ -67,7 +67,8 @@ def serve(args) -> None:
     import uvicorn
 
     from .server import create_app
-    uvicorn.run(create_app(load(args), allowed_origins=args.allowed_origins), host=args.host, port=args.port)
+    app = create_app(load(args), allowed_origins=args.allowed_origins, log_path=args.log, model_id=args.model_id)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 def main() -> None:
@@ -79,6 +80,9 @@ def main() -> None:
         p.add_argument("--device")
         p.add_argument("--base-model", help="replaces the base model of domain.json (for example, a local copy)")
         p.add_argument("--turn-encoder", help="replaces the turn encoder of domain.json (for example, a local copy)")
+        p.add_argument("--no-adapter", action="store_true", help="use the base model without the adapter")
+        p.add_argument("--decision", choices=["score", "generate"], default="score",
+                       help="score the allowed actions (default) or generate the action")
 
     p = sub.add_parser("chat", help="talk to an agent built from a domain artifact")
     agent_options(p)
@@ -99,6 +103,8 @@ def main() -> None:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--allowed-origins", nargs="*", help="origins allowed to call the API (default: any)")
+    p.add_argument("--log", help="JSON lines file where every response is appended with its trace")
+    p.add_argument("--model-id", default="dialog2agent", help="model name in the OpenAI-compatible API")
     p.set_defaults(func=serve)
     p = sub.add_parser("build", help="build a domain artifact from unannotated dialogues")
     p.set_defaults(func=lambda a: (_ for _ in ()).throw(NotImplementedError("'build' is in progress")))
