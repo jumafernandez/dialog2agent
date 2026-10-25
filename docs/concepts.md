@@ -34,10 +34,22 @@ score, and the region that is more probable in the state is chosen.
 The agent can also decide by generation (`decision="generate"`), as the reference of the evaluation: the model writes
 the action and the response, and the declared action is projected to the closest induced action.
 
-## Acting and writing
+## Tools
 
-When the decided action needs information from the environment, a tool is called, such as a database search. The
-response is written after the decided action, with the tool results in the prompt.
+Some induced actions are moments in which the operators queried the database or made a booking, such as offering a
+place or confirming a reservation. The domain artifact lists those actions, by id, for each tool. When the agent
+decides one of them:
+
+1. the language model writes the constraints of the user as a JSON object, guided by a schema taken from the database
+   (the domains, their slots and the values of the categorical slots), and the output is checked against that schema;
+2. the tool runs on the service of the current request: a search returns the number of matching entities and the
+   first three, and a booking returns a reference;
+3. the result is given to the model, as a message of the tool role or within the system message, and the response is
+   written after the decided action.
+
+The calls, with their arguments and results, are part of the trace of the turn. For SpokenWOZ, the tool actions were
+chosen without annotations, by labeling the turns of the operators that name an entity of the database for the first
+time or confirm a booking, and keeping the induced actions where those turns dominate.
 
 ## Scope
 

@@ -42,6 +42,7 @@ agent needs an accelerator with about 24 GB of memory, such as an NVIDIA L4.
 | `structure/` | 68 system actions, 73 user actions and 146 states induced with θ = 0.66 and τ = 0.01, with the counts of the transitions between each state and the next system action |
 | `memory/` | 74,524 situations of the training dialogues, represented by `[e_t ; 0.75 h_CLS]`, with the user turn, the next action, the response and the dialogue of origin |
 | `adapter/` | LoRA adapter of [Qwen/Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) at commit `c202236`, trained on the same dialogues without their annotations |
+| `db/` | database of SpokenWOZ (`<domain>_db.json`) and the parameters of the simulated bookings (`booking.json`) |
 
 The turns are represented with [Dialog2Flow](https://huggingface.co/sergioburdisso/dialog2flow-joint-bert-base),
 [TRACE](https://huggingface.co/jumafernandez/trace-deep-ar) and
@@ -54,6 +55,16 @@ built from this artifact decided the action of the operator in 55.6% of the turn
 Inform of 70.6, a Success of 53.7, a BLEU of 23.2 and a Comb of 85.4 with the official evaluator of the corpus. The
 [documentation](https://jumafernandez.github.io/dialog2agent/evaluation/) describes this evaluation and its
 comparison with the evaluation of the thesis.
+
+## Tools
+
+`domain.json` lists the induced actions that call each tool: four actions for searching the database and two for
+booking. They were chosen without annotations, by labeling the turns of the operators of the training dialogues that
+name an entity of the database for the first time or confirm a booking, and keeping the actions where those turns
+dominate, with a threshold fixed on the development dialogues. When the agent decides one of them, the adapted model
+writes the constraints of the user as JSON, checked against a schema taken from the database, the tool runs on the
+service of the current request, and its result is given to the model as a message of the tool role before the
+response is written. Bookings are simulated: they return a reference derived from their arguments.
 
 ## Scope
 

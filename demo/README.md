@@ -27,7 +27,10 @@ domain, without looking at the judgments, and the verdict of the judge is shown 
 
 The button "talk to the agent" wakes up the agent served on Modal (see [Serving the agent](https://jumafernandez.github.io/dialog2agent/serving/)) and opens a
 live conversation with the first two variants, which share the adapted model. The page never wakes the service on its
-own, since every request to a stopped service starts a GPU; the first start takes about a minute.
+own, since every request to a stopped service starts a GPU; the first start takes about a minute. In the live
+conversation the agent has tools: when the action it decides is a tool action, it searches the SpokenWOZ database or
+makes a simulated booking, and the call, with its arguments and its result, is shown under the response. The replay
+comes from a simulation in which the agent had no tools yet, so the turns in which it announces a search get a note.
 
 Before a turn of the visitor reaches the agent, the page checks that it is in English, by the function words of each
 language, and the service checks that it is within the scope of the domain (see

@@ -9,7 +9,7 @@ my-domain/
   structure/         # induced structure (structure.npz, structure.json)
   memory/            # situations (vectors.npy, entries.jsonl, memory.json)
   adapter/           # LoRA adapter of the language model (optional)
-  db/                # database of the tools (optional, <domain>_db.json)
+  db/                # database of the tools (optional, <domain>_db.json and booking.json)
 ```
 
 ## domain.json
@@ -23,9 +23,16 @@ my-domain/
 | `k`, `conditioned` | number of retrieved situations and whether retrieval is conditioned by the structure |
 | `decision_scale` | calibration of the probabilities of the decision |
 | `max_tokens` | budget of the prompt |
-| `search_triggers` | actions that call the search tool |
+| `search_triggers` | keywords of the action names that call the search tool |
+| `tools` | induced actions, by id, that call each tool, for example `{"search": [43, 9], "book": [8]}` |
+| `tool_results` | `"message"` to give the tool results to the model as a message of the tool role |
 | `scope` | thresholds of the scope of the domain (see below) |
 | `data` | name, citation, URL and license of the dialogues from which the artifact was built |
+
+`db/booking.json` declares the parameters of the booking of each domain, for example
+`{"restaurant": ["people", "day", "time"]}`, which belong to the booking interface and not to the database. A file of
+the database that holds a single object of value lists, such as the taxis of MultiWOZ, describes a service without
+entities, whose bookings are assembled from those lists.
 
 The revisions of the encoders are pinned because the memory is computed with a given version of each encoder. The
 `data` entry is returned by the web service, so that any interface built on it can show the attribution.

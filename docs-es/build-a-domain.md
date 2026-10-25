@@ -9,7 +9,7 @@ mi-dominio/
   structure/         # estructura inducida (structure.npz, structure.json)
   memory/            # situaciones (vectors.npy, entries.jsonl, memory.json)
   adapter/           # adaptador LoRA del modelo de lenguaje (opcional)
-  db/                # base de datos de las herramientas (opcional, <dominio>_db.json)
+  db/                # base de datos de las herramientas (opcional, <dominio>_db.json y booking.json)
 ```
 
 ## domain.json
@@ -23,9 +23,16 @@ mi-dominio/
 | `k`, `conditioned` | cantidad de situaciones recuperadas y si la recuperación se condiciona por la estructura |
 | `decision_scale` | calibración de las probabilidades de la decisión |
 | `max_tokens` | presupuesto del prompt |
-| `search_triggers` | acciones que invocan la herramienta de búsqueda |
+| `search_triggers` | palabras de los nombres de las acciones que invocan la herramienta de búsqueda |
+| `tools` | acciones inducidas, por número, que invocan cada herramienta, por ejemplo `{"search": [43, 9], "book": [8]}` |
+| `tool_results` | `"message"` para entregar los resultados al modelo como un mensaje con el rol de herramienta |
 | `scope` | umbrales del alcance del dominio (ver más abajo) |
 | `data` | nombre, cita, URL y licencia de los diálogos con los cuales se construyó el artefacto |
+
+`db/booking.json` declara los parámetros de la reserva de cada dominio, por ejemplo
+`{"restaurant": ["people", "day", "time"]}`, los cuales pertenecen a la interfaz de reservas y no a la base. Un archivo
+de la base que contiene un único objeto de listas de valores, como el de los taxis de MultiWOZ, describe un servicio
+sin entidades, cuyas reservas se arman a partir de esas listas.
 
 Las revisiones de los codificadores quedan fijadas porque la memoria se calcula con una versión determinada de cada
 uno. El servicio web devuelve la entrada `data`, de modo que cualquier interfaz construida sobre él pueda mostrar la

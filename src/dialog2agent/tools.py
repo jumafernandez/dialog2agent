@@ -147,7 +147,7 @@ class JsonDatabase:
                     for i, (k, v) in enumerate(options.items()) if v and not str(v[0]).startswith("^")}
             phone = "".join(str(int(c, 16) % 10) for c in digest[-10:])
             return {"domain": domain, "booked": True, "reference": digest[:8].upper(), "phone": phone, **pick}
-        rows = self.find(domain, constraints)
+        rows = self.find(domain, constraints) if constraints else []
         if not rows:
             return {"domain": domain, "booked": False, "reason": "no entity satisfies the constraints"}
         name = rows[0].get("name") or rows[0].get("trainID")

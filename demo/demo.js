@@ -32,12 +32,15 @@ const TEXTOS = {
     veredicto: (m, c) => `juez: meta ${m ? '<span class="si">cumplida</span>' : '<span class="no">no cumplida</span>'} · calidad ${c}/5`,
     turno: (i, n) => `turno ${i} de ${n}`, simulada: "Meta del usuario simulado: ",
     despertando: (s) => `Despertando al agente en la GPU… ${s} s. El primer arranque tarda alrededor de un minuto.`,
-    listo: "El agente está listo. Escribile en inglés como si llamaras al centro de información de Cambridge: restaurantes, hoteles, atracciones, trenes, taxis.",
+    listo: "El agente está listo. Escribile en inglés como si llamaras al centro de información de Cambridge: restaurantes, hoteles, atracciones, trenes, taxis. Cuando la acción que decide es de herramienta, consulta la base de SpokenWOZ o hace una reserva simulada.",
     libre: "Conversación libre con el agente servido en Modal (una GPU L4 que se apaga sola).",
     error: "No se pudo contactar al agente. Probá de nuevo en un rato.", limite: "Llegaste al máximo de turnos de esta sesión.",
     soloReplay: "solo en el replay", ficha: (s, n) => `estado ${s} · ${n} turnos de entrenamiento`, tipicos: "turnos típicos del usuario",
     probables: "acciones más probables",
-    sinHerramienta: "Acá un operador consultaría la base de datos. Este agente todavía no tiene herramientas: imita la frase, pero no busca, y los lugares que nombra salen de otras conversaciones.",
+    sinHerramienta: "Acá un operador consultaría la base de datos. En esta simulación el agente todavía no tenía herramientas: imita la frase, pero no busca, y los lugares que nombra salen de otras conversaciones.",
+    sinHerramientaVivo: "El agente anuncia una búsqueda, pero la acción que decidió no es de herramienta, así que en este turno no consultó la base.",
+    herramienta: "herramienta", resultados: (n) => `${n} resultado${n === 1 ? "" : "s"}`, sinResultados: "sin resultados",
+    reservado: "reservado", noReservado: "no se pudo reservar",
     idioma: "El agente conversa solo en inglés: su estructura y su memoria se construyeron con conversaciones de SpokenWOZ, que están en inglés. Probá, por ejemplo, «I need a cheap restaurant in the centre».",
     dominio: (a, m, ua, um) => `Ese pedido queda fuera de lo que el agente conoce, que son las llamadas al centro de información de Cambridge: restaurantes, hoteles, atracciones, trenes, taxis, hospital y policía. El turno no cae cerca de las regiones de la estructura: acción de usuario más cercana ${a} (umbral ${ua}), situación más parecida de la memoria ${m} (umbral ${um}).`,
   },
@@ -59,12 +62,15 @@ const TEXTOS = {
     veredicto: (m, c) => `judge: goal ${m ? '<span class="si">completed</span>' : '<span class="no">not completed</span>'} · quality ${c}/5`,
     turno: (i, n) => `turn ${i} of ${n}`, simulada: "Goal of the simulated user: ",
     despertando: (s) => `Waking up the agent on the GPU… ${s} s. The first start takes about a minute.`,
-    listo: "The agent is ready. Write as if you were calling the Cambridge information centre: restaurants, hotels, attractions, trains, taxis.",
+    listo: "The agent is ready. Write as if you were calling the Cambridge information centre: restaurants, hotels, attractions, trains, taxis. When the action it decides is a tool action, it queries the SpokenWOZ database or makes a simulated booking.",
     libre: "Free conversation with the agent served on Modal (an L4 GPU that turns itself off).",
     error: "The agent could not be reached. Try again in a while.", limite: "You reached the maximum number of turns of this session.",
     soloReplay: "replay only", ficha: (s, n) => `state ${s} · ${n} training turns`, tipicos: "typical user turns",
     probables: "most probable actions",
-    sinHerramienta: "Here an operator would query the database. This agent has no tools yet: it imitates the phrase but does not search, and the places it names come from other conversations.",
+    sinHerramienta: "Here an operator would query the database. In this simulation the agent had no tools yet: it imitates the phrase but does not search, and the places it names come from other conversations.",
+    sinHerramientaVivo: "The agent announces a search, but the action it decided is not a tool action, so it did not query the database in this turn.",
+    herramienta: "tool", resultados: (n) => `${n} result${n === 1 ? "" : "s"}`, sinResultados: "no results",
+    reservado: "booked", noReservado: "could not be booked",
     idioma: "The agent only talks in English: its structure and its memory were built from SpokenWOZ conversations, which are in English. Try, for example, “I need a cheap restaurant in the centre”.",
     dominio: (a, m, ua, um) => `That request is outside what the agent knows, which is calls to the Cambridge information centre: restaurants, hotels, attractions, trains, taxis, hospital and police. The turn does not fall near the regions of the structure: closest user action ${a} (threshold ${ua}), most similar memory situation ${m} (threshold ${um}).`,
   },
@@ -242,15 +248,28 @@ function mostrarPaso(p) {
     const d = el("div", "situacion"); d.append(el("span", "sim", s.similarity.toFixed(3)), el("div", null, s.user), el("div", "a", "→ " + s.action), el("div", "r", s.response)); mem.append(d);
   }
 }
-// Turns in which the agent says that it is going to search, as the operators do before querying the database, get a
-// note: the agent has no tools yet, so nothing is searched.
+// The calls to tools of a live turn are shown under the response. Turns in which the agent says that it is going to
+// search without calling a tool get a note: in the replay the agent had no tools yet, and in a live turn the decided
+// action was not a tool action.
 const BUSQUEDA = /\b(check|checking|look (it |that |them )?up|looking (it |that )?up|search|searching|one moment|a moment|let me see|hold on|bear with me|just a (second|sec|minute))\b/i;
-function burbuja(quien, texto, accion) {
+function resumenLlamada(c) {
+  const a = c.arguments || {}, r = c.result || {};
+  const args = Object.entries(a.constraints || {}).map(([k, v]) => `${k}=${v}`).join(", ");
+  let res;
+  if (c.name === "search") {
+    res = r.count ? `${T().resultados(r.count)}: ${(r.entities || []).map((e) => e.name || e.trainID).filter(Boolean).join(", ")}` : T().sinResultados;
+  } else if (r.booked) {
+    res = `${T().reservado}: ` + (r.type ? `${r.color || ""} ${r.type} · ${r.phone}`.trim() : `${r.name || ""} · ref ${r.reference}`);
+  } else res = T().noReservado;
+  return `${T().herramienta}: ${c.name}(${a.domain}${args ? " · " + args : ""}) → ${res}`;
+}
+function burbuja(quien, texto, accion, llamadas = null) {
   const b = el("div", "burbuja " + (quien === "User" ? "user" : "system"));
   b.append(el("span", "quien", quien === "User" ? T().usuario : T().agente));
   const txt = el("span"); b.append(txt);
   if (accion) { b.append(el("br"), el("span", "accion", `${T().accion}: ${accion}`)); }
-  if (quien !== "User" && BUSQUEDA.test(texto)) b.append(el("span", "sin-herramienta", T().sinHerramienta));
+  if (llamadas && llamadas.length) for (const c of llamadas) b.append(el("span", "herramienta", resumenLlamada(c)));
+  else if (quien !== "User" && BUSQUEDA.test(texto)) b.append(el("span", "sin-herramienta", modo === "vivo" ? T().sinHerramientaVivo : T().sinHerramienta));
   $("chat").append(b);
   if (quieto) txt.textContent = texto;
   else { let i = 0; const f = () => { txt.textContent = texto.slice(0, ++i); $("chat").scrollTop = 1e9; if (i < texto.length) setTimeout(f, 12); }; f(); }
@@ -330,7 +349,7 @@ async function enviar(ev) {
     const x = await r.json();
     mostrarPaso({ state: x.state, action: x.action.id, allowed: x.allowed.map((a) => a.id), situations: x.situations.slice(0, 3),
                   options: x.options.slice(0, 6).map((o) => ({ id: o.id, p: o.probability })), decision: x.decision });
-    pen.remove(); burbuja("System", x.text, x.action.name); turnosVivo.push({ speaker: "system", text: x.text });
+    pen.remove(); burbuja("System", x.text, x.action.name, x.tool_calls); turnosVivo.push({ speaker: "system", text: x.text });
   } catch { pen.remove(); if (agregado) turnosVivo.pop(); $("chat").append(el("div", "aviso error", T().error)); }
   finally { enviando = false; $("texto").disabled = false; $("texto").focus(); }
 }

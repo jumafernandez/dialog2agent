@@ -10,6 +10,8 @@
 
 ::: dialog2agent.scope
 
+::: dialog2agent.extraction
+
 ::: dialog2agent.tools
 
 ::: dialog2agent.backends

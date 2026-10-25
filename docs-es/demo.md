@@ -30,7 +30,10 @@ juez.
 El botón "conversar con el agente" despierta el agente servido en Modal (ver [Servir el agente](serving.md)) y abre
 una conversación en vivo con las dos primeras variantes, que comparten el modelo adaptado. La página nunca despierta
 el servicio por sí misma, dado que cada solicitud a un servicio detenido inicia una GPU, y el primer arranque demora
-alrededor de un minuto.
+alrededor de un minuto. En la conversación en vivo el agente tiene herramientas: cuando la acción que decide es de
+herramienta, busca en la base de SpokenWOZ o hace una reserva simulada, y la llamada, con sus argumentos y su
+resultado, se muestra debajo de la respuesta. El replay proviene de una simulación en la cual el agente todavía no
+tenía herramientas, por lo cual los turnos en los cuales anuncia una búsqueda llevan una nota.
 
 Antes de que un turno del visitante llegue al agente, la página controla que esté en inglés, por las palabras
 funcionales de cada idioma, y el servicio controla que esté dentro del alcance del dominio (ver

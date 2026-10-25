@@ -34,11 +34,24 @@ nombre reciben la misma puntuación, y se elige la región más probable en el e
 El agente también puede decidir por generación (`decision="generate"`), como referencia de la evaluación: el modelo
 escribe la acción y la respuesta, y la acción declarada se proyecta sobre la acción inducida más cercana.
 
-## Actuar y redactar
+## Herramientas
 
-Cuando la acción decidida requiere información del entorno, se invoca una herramienta, como la búsqueda en una base de
-datos. La respuesta se redacta a continuación de la acción decidida, con los resultados de la herramienta en el
-prompt.
+Algunas acciones inducidas son momentos en los cuales los operadores consultaron la base de datos o realizaron una
+reserva, como ofrecer un lugar o confirmar una reserva. El artefacto de dominio declara esas acciones, por su número,
+para cada herramienta. Cuando el agente decide una de ellas:
+
+1. el modelo de lenguaje escribe las restricciones del usuario como un objeto JSON, guiado por un esquema que se
+   obtiene de la base (los dominios, sus atributos y los valores de los atributos categóricos), y la salida se valida
+   contra ese esquema;
+2. la herramienta se ejecuta sobre el servicio del pedido actual: una búsqueda devuelve la cantidad de entidades que
+   cumplen las restricciones y las tres primeras, y una reserva devuelve una referencia;
+3. el resultado se entrega al modelo, como un mensaje con el rol de herramienta o dentro del mensaje de sistema, y la
+   respuesta se redacta a continuación de la acción decidida.
+
+Las llamadas, con sus argumentos y resultados, forman parte de la traza del turno. Para SpokenWOZ, las acciones de
+herramienta se eligieron sin anotaciones, etiquetando los turnos de los operadores que nombran por primera vez una
+entidad de la base o confirman una reserva, y conservando las acciones inducidas en las cuales esos turnos
+predominan.
 
 ## Alcance
 

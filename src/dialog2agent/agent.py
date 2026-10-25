@@ -118,7 +118,8 @@ class Agent:
             constraints = dict(list(self.extractor.extract(list(turns)).items())[:1])
         if tool is not None and constraints:
             for domain, values in constraints.items():
-                tool_calls.append(tool(domain=domain, constraints=values))
+                if values or tool.name != "search":  # a search needs constraints; a taxi booking does not
+                    tool_calls.append(tool(domain=domain, constraints=values))
         if tool_calls:
             chat = messages(context, situations, names, self.prompt,
                             tool_results=[f"{c.name}({json.dumps(c.arguments, ensure_ascii=False)}) -> "

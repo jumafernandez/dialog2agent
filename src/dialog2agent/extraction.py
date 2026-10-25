@@ -8,6 +8,7 @@ and categorical values must be one of the values of the database.
 from __future__ import annotations
 
 import json
+import re
 
 from .tools import EMPTY, normalize
 from .types import Turn
@@ -27,6 +28,10 @@ def describe(schema: dict[str, dict[str, list[str] | None]]) -> str:
         parts = [f"{slot} ({', '.join(values)})" if values else slot for slot, values in slots.items()]
         lines.append(f"- {domain}: " + "; ".join(parts))
     return "\n".join(lines)
+
+
+def key(slot: str) -> str:
+    return re.sub(r"[^a-z]", "", str(slot).lower())
 
 
 def first_object(text: str) -> str | None:
@@ -59,7 +64,10 @@ class ConstraintExtractor:
             domain = normalize(domain)
             if domain not in self.schema or not isinstance(slots, dict):
                 continue
+            names = {key(n): n for n in self.schema[domain]}  # "leave at" and "leave_at" are the slot leaveAt
+            constraints.setdefault(domain, {})  # the service is kept even without valid slots, as for a taxi
             for slot, value in slots.items():
+                slot = names.get(key(slot), slot)
                 allowed = self.schema[domain].get(slot, "unknown")
                 value = normalize(value)
                 if allowed == "unknown" or value in EMPTY or (allowed is not None and value not in allowed):

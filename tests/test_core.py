@@ -234,7 +234,7 @@ def toy_database(tmp_path):
     (tmp_path / "train_db.json").write_text(json.dumps([
         {"trainID": "TR1", "departure": "ely", "destination": "cambridge", "day": "monday", "leaveAt": "08:00",
          "arriveBy": "08:30"},
-        {"trainID": "TR2", "departure": "ely", "destination": "cambridge", "day": "monday", "leaveAt": "10:00",
+        {"trainID": "TR2", "departure": "cambridge", "destination": "ely", "day": "monday", "leaveAt": "10:00",
          "arriveBy": "10:30"}]))
     (tmp_path / "taxi_db.json").write_text(json.dumps([{"taxi_colors": ["black"], "taxi_types": ["volvo"],
                                                         "taxi_phone": ["^[0-9]{10}$"]}]))
@@ -266,11 +266,13 @@ def test_extractor_checks_the_output_against_the_schema(tmp_path):
     class Writer(FakeBackend):
         def generate(self, messages, prefix="", max_new_tokens=120, sample=False):
             assert prefix == "{" and "restaurant:" in messages[0]["content"]
-            return ('"restaurant": {"food": "Italian", "area": "north pole", "colour": "red", "people": "2"}, '
+            return ('"restaurant": {"food": "Italian", "area": "north pole", "colour": "red", "People": "2"}, '
                     '"spaceship": {"speed": "fast"}} and some text')
 
     out = ConstraintExtractor(Writer(), db.schema()).extract([Turn("user", "cheap italian food for two, please")])
     assert out == {"restaurant": {"food": "italian", "people": "2"}}
+    assert ConstraintExtractor(Writer(), db.schema()).parse('{"restaurant": {"car": "volvo"}}') == {"restaurant": {}}
+    assert not db.book("restaurant", {})["booked"] and db.book("taxi", {})["booked"]
 
 
 def test_tool_actions_call_the_tool_with_extracted_constraints(tmp_path):
@@ -295,3 +297,11 @@ def test_tool_actions_call_the_tool_with_extracted_constraints(tmp_path):
     r = agent.turn(agent.new_session(), "something italian")
     assert [c.name for c in r.tool_calls] == ["search"] and r.tool_calls[0].arguments["domain"] == "restaurant"
     assert r.text == "There is Pizza Hut City Centre."
+
+
+def test_extractor_accepts_slot_names_written_differently(tmp_path):
+    from dialog2agent import ConstraintExtractor
+    db = toy_database(tmp_path)
+    ex = ConstraintExtractor(FakeBackend(), db.schema())
+    assert ex.parse('{"train": {"leave_at": "09:00", "Leave At": "10:00", "departure": "Ely"}}') == \
+        {"train": {"leaveAt": "10:00", "departure": "ely"}}
